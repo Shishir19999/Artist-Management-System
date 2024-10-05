@@ -15,14 +15,18 @@ datasource db {
 
 model User {
   id            Int      @id @default(autoincrement())
-  name          String
+  fname         String
+  lname         String
   email         String   @unique
   password      String
   profile_image String?
+  phone         String?  
+  address       String?
   gender        Gender   @default(MALE)
   role          Role     @default(USER)
+  dob           DateTime
   createdAt     DateTime @default(now())
-  upadatedAt    DateTime @updatedAt
+  updatedAt     DateTime @updatedAt
   Artist        Artist[]
 }
 
@@ -38,6 +42,19 @@ model Artist {
   createdAt          DateTime @default(now())
   upadatedAt         DateTime @updatedAt
   user               User     @relation(fields: [user_id], references: [id])
+  Music              Music[]
+}
+
+model Music {
+  id         Int      @id @default(autoincrement())
+  title      String
+  artist_id  Int
+  album_id   Int
+  genre      String
+  album_name String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  artist     Artist   @relation(fields: [artist_id], references: [id])
 }
 
 enum Role {
@@ -50,4 +67,14 @@ enum Gender {
   MALE
   FEMALE
   OTHER
+}
+
+enum Genre {
+  ROCK
+  POP
+  JAZZ
+  HIP_HOP
+  CLASSICAL
+  ELECTRONIC
+  COUNTRY
 }
