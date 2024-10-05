@@ -12,6 +12,8 @@ interface ArtistUser{
     name: string,
     email: string,
     password: string,
+    address?: string; 
+    phone?: string;
 }
 
 /**
@@ -31,7 +33,7 @@ export async function GET(request: NextRequest, { params: { user_id } }: Props){
     if(!artistUser){
         return NextResponse.json(
             { error: "User not found!"},
-            { status: 200}
+            { status: 404}
         )
     }
 
@@ -69,7 +71,18 @@ export async function PUT(request: NextRequest, { params: { user_id} }: Props ){
     }
 
     // check email already existing....
-    // todo
+    const emailExists = await prisma.user.findUnique({
+        where: {
+            email: reqData.email,
+        },
+    });
+
+    if (emailExists && emailExists.id !== artistUser.id) {
+        return NextResponse.json(
+            { error: "Email is already used!" },
+            { status: 400 }
+        );
+    }
 
     // update user data
     const updatedArtistUser = await prisma.user.update({
@@ -118,7 +131,7 @@ export async function DELETE(request: NextRequest,{ params: { user_id} }: Props)
     return NextResponse.json(
         {
             deletedArtistUser,
-            msg: "User delteed successfully!"},
+            msg: "User deleted successfully!"},
         { status: 200}
     )
 }

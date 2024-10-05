@@ -20,7 +20,7 @@ model User {
   email         String   @unique
   password      String
   profile_image String?
-  phone         String?  
+  phone         String?
   address       String?
   gender        Gender   @default(MALE)
   role          Role     @default(USER)
@@ -37,7 +37,8 @@ model Artist {
   dob                DateTime
   first_release_year DateTime
   total_albums       Int
-  address            String
+  phone              String?
+  address            String?
   create_by          Int
   createdAt          DateTime @default(now())
   upadatedAt         DateTime @updatedAt
