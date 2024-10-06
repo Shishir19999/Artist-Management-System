@@ -34,7 +34,7 @@ model Artist {
   id                 Int      @id @default(autoincrement())
   user_id            Int
   gender             Gender   @default(MALE)
-  dob                DateTime
+  dob                DateTime?
   first_release_year DateTime
   total_albums       Int
   phone              String?

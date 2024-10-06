@@ -9,7 +9,8 @@ interface Props{
 }
 
 interface ArtistUser{
-    name: string,
+    fname: string,
+    lname: string,
     email: string,
     password: string,
     address?: string; 
@@ -90,7 +91,8 @@ export async function PUT(request: NextRequest, { params: { user_id} }: Props ){
             id: artistUser.id
         },
         data:{
-            name: reqData.name,
+            fname: reqData.fname,
+            lname: reqData.lname,
             email: reqData.email,
             password: reqData.password
         }
