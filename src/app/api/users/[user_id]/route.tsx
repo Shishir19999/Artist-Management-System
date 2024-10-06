@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "../../../../../prisma/PrismaClient";
 import { UserSchema } from "../UserSchema";
+import bcrypt from 'bcrypt';
+import { Prisma } from "@prisma/client"; // Import Prisma types
 
 interface Props {
     params: {
@@ -8,37 +10,9 @@ interface Props {
     };
 }
 
-interface UserUpdatePayload {
-    name: string;
-    email: string;
-    password: string;
-}
-
-/**
- * Fetch a single user by ID
- * @param request - Incoming request data
- * @param params - Request parameters containing user_id
- * @returns - User data or error response
- */
-export async function GET(request: NextRequest, { params: { user_id } }: Props) {
-    const user = await prisma.user.findUnique({
-        where: {
-            id: parseInt(user_id),
-        },
-    });
-
-    if (!user) {
-        return NextResponse.json(
-            { error: "User not found!" },
-            { status: 404 }
-        );
-    }
-
-    return NextResponse.json({ data: user }, { status: 200 });
-}
-
+// Update User Data
 export async function PUT(request: NextRequest, { params: { user_id } }: Props) {
-    const reqData: UserUpdatePayload = await request.json();
+    const reqData: Prisma.UserUpdateInput = await request.json(); // Use Prisma's UserUpdateInput type
 
     // Run query to find user
     const user = await prisma.user.findUnique({
@@ -47,12 +21,15 @@ export async function PUT(request: NextRequest, { params: { user_id } }: Props) 
         },
     });
 
-    // if not found return not found error
+    // If user is not found, return an error
     if (!user) {
-        return NextResponse.json({ error: "User Not Found!" }, { status: 404 });
+        return NextResponse.json(
+            { error: "User Not Found!" },
+            { status: 404 }
+        );
     }
 
-    // validate data
+    // Validate data
     const validation = UserSchema.safeParse(reqData);
     if (!validation.success) {
         return NextResponse.json(
@@ -61,63 +38,26 @@ export async function PUT(request: NextRequest, { params: { user_id } }: Props) 
         );
     }
 
-    // check if email already exists (excluding current user)
-    const isUserExist = await prisma.user.findFirst({
-        where: {
-            email: reqData.email,
-            NOT: { id: parseInt(user_id) }, 
-        },
-    });
-
-    if (isUserExist) {
-        return NextResponse.json(
-            { error: "Email is already used by another user!" },
-            { status: 400 }
-        );
+    // Hash password only if it is being updated
+    let hashedPassword: string | undefined = undefined;
+    if (reqData.password) {
+        hashedPassword = bcrypt.hashSync(reqData.password as string, 10);
     }
 
-    // update user data
+    // Update user data
     const updatedUser = await prisma.user.update({
         where: {
             id: user.id,
         },
         data: {
-            name: reqData.name,
-            email: reqData.email,
-            password: reqData.password,
+            ...reqData,
+            password: hashedPassword ? hashedPassword : user.password, // Ensure password is set to a string
         },
     });
 
-    // return updated user data;
-    return NextResponse.json({ updatedData: updatedUser }, { status: 200 });
-}
-
-export async function DELETE(request: NextRequest, { params: { user_id } }: Props) {
-    // run find query by id
-    const user = await prisma.user.findUnique({
-        where: {
-            id: parseInt(user_id),
-        },
-    });
-
-    // check user
-    if (!user) {
-        return NextResponse.json(
-            { error: "User not found" },
-            { status: 404 }
-        );
-    }
-
-    // delete user
-    await prisma.user.delete({
-        where: {
-            id: parseInt(user_id),
-        },
-    });
-
-    // return response
+    // Return updated user data
     return NextResponse.json(
-        { msg: "User deleted successfully!" },
+        { updatedData: updatedUser },
         { status: 200 }
     );
 }

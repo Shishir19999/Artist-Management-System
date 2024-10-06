@@ -15,67 +15,60 @@ datasource db {
 
 model User {
   id            Int      @id @default(autoincrement())
-  fname         String
-  lname         String
+  name          String
   email         String   @unique
   password      String
   profile_image String?
-  phone         String?
-  address       String?
   gender        Gender   @default(MALE)
   role          Role     @default(USER)
-  dob           DateTime
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  Artist        Artist[]
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  Artist Artist[]
 }
 
 model Artist {
   id                 Int      @id @default(autoincrement())
-  user_id            Int
+  name               String
   gender             Gender   @default(MALE)
-  dob                DateTime?
+  dob                DateTime
   first_release_year DateTime
   total_albums       Int
-  phone              String?
-  address            String?
-  create_by          Int
-  createdAt          DateTime @default(now())
-  upadatedAt         DateTime @updatedAt
-  user               User     @relation(fields: [user_id], references: [id])
-  Music              Music[]
+  address            String
+  created_by         Int
+  created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
+  user  User    @relation(fields: [created_by], references: [id])
+  Music Music[]
 }
 
 model Music {
   id         Int      @id @default(autoincrement())
   title      String
+  album      String
+  Genre      Genre    @default(CLASSIC)
   artist_id  Int
-  album_id   Int
-  genre      String
-  album_name String
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
   artist     Artist   @relation(fields: [artist_id], references: [id])
+}
+
+enum Genre {
+  RNB
+  COUNTRY
+  CLASSIC
+  ROCK
+  JAZZ
+}
+
+enum Gender {
+  MALE
+  FEMELE
+  OTHER
 }
 
 enum Role {
   USER
   ARTIST_MANAGER
   ADMIN
-}
-
-enum Gender {
-  MALE
-  FEMALE
-  OTHER
-}
-
-enum Genre {
-  ROCK
-  POP
-  JAZZ
-  HIP_HOP
-  CLASSICAL
-  ELECTRONIC
-  COUNTRY
 }

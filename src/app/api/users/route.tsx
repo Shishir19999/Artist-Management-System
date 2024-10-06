@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { UserSchema} from "./UserSchema";
 import prisma from "./../../../../prisma/PrismaClient";
+import bcrypt from 'bcrypt';
 
 interface User{
     name: string,
@@ -8,13 +9,12 @@ interface User{
     password: string,
 }
 
-
 export async function GET(request: NextRequest){
 
     const allUsers: User[] = await prisma.user.findMany();
 
     return NextResponse.json(
-        {  datas: allUsers, total_data: allUsers.length },
+        {  users: allUsers, total_count: allUsers.length },
         {  status: 200 },
     );
 }
@@ -45,12 +45,14 @@ export async function POST(request: NextRequest){
         )
     }
 
+    const hashPassord = bcrypt.hashSync(reqData.password,10)
+
     // create user
     const newUser = await prisma.user.create({
         data: {
             name: reqData.name,
             email: reqData.email,
-            password: reqData.password
+            password: hashPassord
         }
     })
 
