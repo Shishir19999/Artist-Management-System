@@ -3,8 +3,7 @@ import { ArtistSchema } from "./ArtistSchema";
 import prisma from "./../../../../prisma/PrismaClient";
 
 interface ArtistUser {
-    fname: string;
-    lname: string;
+    name: string;
     email: string;
     password: string;
     firstReleaseYear: Date; 
@@ -55,11 +54,10 @@ export async function POST(request: NextRequest) {
     // Create user details
     const newUser = await prisma.user.create({
         data: {
-            fname: reqData.fname,
-            lname: reqData.lname,
+            name: reqData.name,
             email: reqData.email,
             password: reqData.password,
-            dob: reqData.dob,
+            dob: reqData.dob ||'',
         },
     });
 

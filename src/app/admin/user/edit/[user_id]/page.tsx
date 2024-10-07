@@ -91,7 +91,7 @@ export default function editUser({ params: { user_id} }: Props) {
                     </select>
                 </div>
                 <div className='col-span-2'>
-                    <button type='submit' className='btn btn-success text-white'>Create User</button>
+                    <button type='submit' className='btn btn-success text-white'>Update User</button>
                 </div>
             </div>
         </form>
