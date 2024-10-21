@@ -42,6 +42,7 @@ export default function page() {
 
       showSucces("User Deleted Successfull!");
 
+      // setUsers(users.filter(item => item.id != id))
       fetchUsersData();
 
     })
@@ -84,10 +85,12 @@ export default function page() {
                   <td>{user.gender}</td>
                   <td>{user.role}</td>
                   <td>
-                    <Link href={`/admin/user/${user.id}`} className='btn btn-primary'>
+                    <Link href={`/admin/user/edit/${user.id}`} className='btn btn-secondary'>
+                      {/* show Icon */}
                       Edit
                     </Link>
-                    <Link href={`/admin/user/show/${user.id}`} className='btn btn-primary'>
+                    <Link href={`/admin/user/show/${user.id}`} className='btn btn-primary mx-2'>
+                      {/* show Icon */}
                       Show
                     </Link>
                     <button type='button' onClick={()=> handleDelete(user.id)} className='btn btn-error'>Delete</button>

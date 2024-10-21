@@ -21,8 +21,8 @@ export default function AdminHeader() {
       <FaBarsStaggered />
       </div>
 
-      <div ref={ref} className='relative flex gap-3 items-center h-[50px] '>
-        <FaRegUser color= "#6a6a70" />
+      <div ref={ref} className='relative flex gap-3 items-center h-[50px]'>
+        <FaRegUser/>
         <span>Admin</span>
 
         {

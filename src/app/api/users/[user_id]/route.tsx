@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "../../../../../prisma/PrismaClient";
 import { UserSchema } from "../UserSchema";
 import bcrypt from 'bcrypt';
-import { Prisma } from "@prisma/client";
 
 interface Props {
     params: {
@@ -10,17 +9,40 @@ interface Props {
     };
 }
 
+enum Role {
+    ADMIN = "ADMIN",
+    USER = "USER",
+    GUEST = "GUEST",
+}
+
+interface User {
+    name: string;
+    email: string;
+    password: string;
+    role: Role
+}
+
+/**
+ * Fetch Single User
+ */
 export async function GET(request: NextRequest, { params: { user_id } }: Props) {
     const user = await prisma.user.findUnique({
         where: {
-            id: parseInt(user_id),
+            id: user_id 
         },
+        include: {
+            artist: {
+                select: {
+                    name: true
+                }
+            }
+        }
     });
 
     if (!user) {
         return NextResponse.json(
             { error: "User not found!" },
-            { status: 200 }
+            { status: 404 }
         );
     }
 
@@ -30,18 +52,19 @@ export async function GET(request: NextRequest, { params: { user_id } }: Props) 
     );
 }
 
-// Update User Data
+/**
+ * Update User Data
+ */
 export async function PUT(request: NextRequest, { params: { user_id } }: Props) {
-    const reqData: Prisma.UserUpdateInput = await request.json();
+    const reqData: User = await request.json();
 
-    // Run query to find user
+    // Find the user by id
     const user = await prisma.user.findUnique({
         where: {
-            id: parseInt(user_id),
-        },
+            id: user_id // Again, no need to parseInt
+        }
     });
 
-    // If user is not found, return an error
     if (!user) {
         return NextResponse.json(
             { error: "User Not Found!" },
@@ -58,40 +81,53 @@ export async function PUT(request: NextRequest, { params: { user_id } }: Props) 
         );
     }
 
-    // Hash password only if it is being updated
-    let hashedPassword: string | undefined = undefined;
-    if (reqData.password) {
-        hashedPassword = bcrypt.hashSync(reqData.password as string, 10);
-    }
-
-    // Update user data
-    const updatedUser = await prisma.user.update({
+    // Check if the email already exists (ignoring the current user)
+    const existingUser = await prisma.user.findUnique({
         where: {
-            id: user.id,
-        },
-        data: {
-            ...reqData,
-            password: hashedPassword ? hashedPassword : user.password, 
-        },
+            email: reqData.email
+        }
     });
 
-    // Return updated user data
+    if (existingUser && existingUser.id !== user.id) {
+        return NextResponse.json(
+            { error: "Email is already in use." },
+            { status: 400 }
+        );
+    }
+
+    // Hash the password asynchronously
+    const hashedPassword = await bcrypt.hash(reqData.password, 10);
+
+    // Update the user data
+    const updatedUser = await prisma.user.update({
+        where: {
+            id: user.id
+        },
+        data: {
+            name: reqData.name,
+            email: reqData.email,
+            password: hashedPassword,
+            role: reqData.role
+        }
+    });
+
     return NextResponse.json(
         { updatedData: updatedUser },
         { status: 200 }
     );
 }
 
-// Delete User
+/**
+ * Delete User Data
+ */
 export async function DELETE(request: NextRequest, { params: { user_id } }: Props) {
-    // Run find query by id
+    // Find the user by id
     const user = await prisma.user.findUnique({
         where: {
-            id: parseInt(user_id),
-        },
+            id: user_id // No need to parseInt
+        }
     });
 
-    // If user is not found, return an error
     if (!user) {
         return NextResponse.json(
             { error: "User not found" },
@@ -99,19 +135,15 @@ export async function DELETE(request: NextRequest, { params: { user_id } }: Prop
         );
     }
 
-    // Delete user
+    // Delete the user
     const deletedUser = await prisma.user.delete({
         where: {
-            id: parseInt(user_id),
-        },
+            id: user_id // No need to parseInt
+        }
     });
 
-    // Return response
     return NextResponse.json(
-        {
-            deletedUser,
-            msg: "User deleted successfully!",
-        },
+        { deletedUser, msg: "User deleted successfully!" },
         { status: 200 }
     );
 }

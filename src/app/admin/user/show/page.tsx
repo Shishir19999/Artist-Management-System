@@ -1,77 +1,88 @@
 "use client"
-import GoToBack from '@/components/GoToBack';
+import { baseUrl } from '@/utils/baseURL';
 import axios from 'axios';
-import React, { useState } from 'react';
-import { useEffectOnce } from 'react-use';
-import { showError } from '@/utils/notify';
+import React, { useEffect, useState } from 'react';
+import { showError, showSucces } from "@/utils/notify"
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
-interface User {
-  id: number;
-  name: string;
-  email: string;
-  profile_image: string;
-  gender: string;
-  role: string;
-  created_at: Date;
-  updated_at: Date;
+interface Props{
+    params: {
+        user_id: string
+    }
 }
 
-export default function ShowUser() {
-  const [user, setUser] = useState<User | null>(null);
-  const [isLoading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+interface User{
+    id: number,
+    name: string,
+    email: string,
+    profile_image: string,
+    gender: string,
+    role: string,
+    created_at: Date,
+    updated_at: Date,
+    Artist: []
+  }
 
-  
+export default function editUser({ params: { user_id} }: Props) {
+    const router = useRouter();
 
-  const fetchUserData = () => {
-    
+    const [ user, setUser] = useState<User>();
 
-    setLoading(true);
-    setError(null);
+    const fetcUserById = () =>{
+        axios.get(`${baseUrl.local}/users/${user_id}`)
+        .then(res =>{
+            setUser(res.data.user)
+        })
+        .catch(err=>{
+            showError(err);
+        })
+    }
 
-    axios.get(`http://localhost:3000/api/users/${user_id}`)
-      .then(res => {
-        setUser(res.data.user);
-      })
-      .catch(err => {
-        setError('Failed to fetch user details.');
-        showError('Failed to fetch user details.');
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  };
-
-  useEffectOnce(() => {
-    fetchUserData();
-  });
+    useEffect(()=>{
+        fetcUserById();
+    },[])
 
   return (
-    <div>
-      <GoToBack />
-      {isLoading ? (
-        <div className="text-center">Loading...</div>
-      ) : error ? (
-        <div className="text-red-500 text-center">{error}</div>
-      ) : user ? (
-        <div className="card w-96 bg-base-100 shadow-xl mx-auto mt-10">
-          <figure>
-            {user.profile_image && (
-              <img src={user.profile_image} alt={user.name} className="w-full h-auto" />
-            )}
-          </figure>
-          <div className="card-body">
-            <h2 className="card-title">{user.name}</h2>
-            <p>Email: {user.email}</p>
-            <p>Gender: {user.gender}</p>
-            <p>Role: {user.role}</p>
-            <p>Created At: {new Date(user.created_at).toLocaleString()}</p>
-            <p>Updated At: {new Date(user.updated_at).toLocaleString()}</p>
-          </div>
-        </div>
-      ) : (
-        <div className="text-center">User not found.</div>
-      )}
+    <div >
+        <h1 className='mb-[30px] pb-2 border-b-2 text-[30px] font-bold'>User Details</h1>
+        <table className='table table-caption'>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <td>{user?.name}</td>
+                </tr>
+                <tr>
+                    <th>Email</th>
+                    <td>{user?.email}</td>
+                </tr>
+                <tr>
+                    <th>Gender</th>
+                    <td>{user?.gender}</td>
+                </tr>
+                <tr>
+                    <th>Role</th>
+                    <td>{user?.role}</td>
+                </tr>
+                <tr>
+                    <th>Artists</th>
+                    <td>
+                        <ul>
+                            {
+                                user?.Artist.map((artist,i) =>{
+                                    return (
+                                        <li key={i}>
+                                            {artist.name}
+                                        </li>
+                                    )
+                                })
+                            }
+                        </ul>
+                    </td>
+                </tr>
+            </thead>
+        </table>
+        <Link href={`/admin/user/edit/${user?.id}`} className='btn btn-primary'>Edit User</Link>
     </div>
-  );
+  )
 }

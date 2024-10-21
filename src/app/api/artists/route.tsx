@@ -1,85 +1,43 @@
 import { NextRequest, NextResponse } from "next/server";
+import prisma from "../../../../prisma/PrismaClient";
 import { ArtistSchema } from "./ArtistSchema";
-import prisma from "./../../../../prisma/PrismaClient";
 
-interface ArtistUser {
-    name: string;
-    email: string;
-    password: string;
-    firstReleaseYear: Date; 
-    totalAlbums: number;
-    address?: string; 
-    dob: Date; 
-}
+export async function POST(request: NextRequest){
+    const reqData = await request.json();
 
-export async function GET(request: NextRequest) {
-    const allArtistUsers = await prisma.artist.findMany({
-        include: {
-            user: true, 
-        },
-    });
 
-    return NextResponse.json(
-        { datas: allArtistUsers, total_data: allArtistUsers.length },
-        { status: 200 },
-    );
-}
+    console.log("reqData : ",reqData);
 
-export async function POST(request: NextRequest) {
-    const reqData: ArtistUser = await request.json();
-
-    // Validate incoming data
     const validation = ArtistSchema.safeParse(reqData);
-    if (!validation.success) {
+
+    if(!validation.success){
         return NextResponse.json(
-            { error: validation.error.errors },
-            { status: 400 }
+            {error: validation.error.errors},
+            {status: 400}
         );
     }
 
-    // Check existing email
-    const isArtistUserExist = await prisma.user.findUnique({
-        where: {
-            email: reqData.email,
-        },
-    });
-
-    if (isArtistUserExist) {
-        return NextResponse.json(
-            { error: "Email is already used!" },
-            { status: 400 }
-        );
-    }
-
-    // Create user details
-    const newUser = await prisma.user.create({
+    const newArtist = await prisma.artist.create({
         data: {
             name: reqData.name,
-            email: reqData.email,
-            password: reqData.password,
-            dob: reqData.dob ||'',
-        },
-    });
-
-    // Create artist details
-    const newArtistUser = await prisma.artist.create({
-        data: {
-            user: {
-                connect: {
-                    id: newUser.id, // Linking the newly created user by ID
-                },
-            },
+            gender: reqData.gender,
             dob: reqData.dob,
-            first_release_year: reqData.firstReleaseYear,
-            total_albums: reqData.totalAlbums,
-            address: reqData.address || '',
-            create_by: newUser.id, // Use the user's numeric ID here
-        },
+            first_release_year: reqData.first_release_year,
+            total_albums: parseInt(reqData.total_albums),
+            address: reqData.address,
+            created_by: 2
+        }
     });
 
-    // Response with the inserted artist data
+    if(newArtist){
+        return NextResponse.json(
+            {newArtist},
+            { status: 200}
+        );
+    }
+
     return NextResponse.json(
-        { data: newArtistUser },
-        { status: 200 }
+        {error: "Error in creating artist"},
+        { status: 400}
     );
 }

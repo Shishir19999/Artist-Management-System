@@ -5,13 +5,11 @@ import ArtistCard from './partials/ArtistCard';
 
 export default function DashboardPage() {
   
- 
-
   return (
     <div className='grid grid-cols-12 gap-[30px]'>
 
       <div className='col-span-4'>
-        <UserCard/>
+        <UserCard />
       </div>
 
       <div className='col-span-4'>
