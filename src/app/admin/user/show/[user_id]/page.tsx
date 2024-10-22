@@ -1,100 +1,100 @@
-"use client"
+"use client";
 import { baseUrl } from '@/utils/baseURL';
 import axios from 'axios';
 import React, { useEffect, useState } from 'react';
-import { showError, showSucces } from "@/utils/notify"
-import { handleError } from '@/utils/errorsHandle';
+import { showError } from "@/utils/notify";
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
-interface Props{
+interface Props {
     params: {
-        user_id: string
+        user_id: string;
     }
 }
 
-export default function editUser({ params: { user_id} }: Props) {
+interface Artist {
+    id: number; 
+    name: string;
+}
+
+interface User {
+    id: number;
+    name: string;
+    email: string;
+    profile_image: string;
+    gender: string;
+    role: string;
+    created_at: Date;
+    updated_at: Date;
+    Artist?: Artist[]; // Make Artist optional
+}
+
+export default function EditUser({ params: { user_id } }: Props) {
     const router = useRouter();
+    const [user, setUser] = useState<User | null>(null); // Start as null
+    const [loading, setLoading] = useState(true); // Loading state
 
-    const [ formData, setFormData] = useState({
-        name: "",
-        email: "",
-        password: "",
-        role: ""
-    });
-
-    const fetcUserById = () =>{
-        axios.get(`${baseUrl.local}/users/${user_id}`)
-        .then(res =>{
-            // console.log("res: ",res.data.user);
-            setFormData(res.data.user)
-        })
-        .catch(err=>{
+    const fetchUserById = async () => {
+        try {
+            const response = await axios.get(`${baseUrl.local}/users/${user_id}`);
+            setUser(response.data.user);
+        } catch (err) {
             showError(err);
-        })
+        } finally {
+            setLoading(false); // End loading regardless of success or error
+        }
+    };
+
+    useEffect(() => {
+        fetchUserById();
+    }, [user_id]);
+
+    if (loading) {
+        return <div>Loading user details...</div>; // Loading message
     }
 
-    const handleChange = (e:any) =>{
-        setFormData({ ...formData, [e.target.name]: e.target.value})
+    if (!user) {
+        return <div>User not found.</div>; // Handle case where user is not found
     }
 
-    const createNewUser = (e:any) =>{
-        e.preventDefault();
-
-        axios.put(`${baseUrl.local}users/${user_id}`, formData )
-        .then(res =>{
-            showSucces("User updated susccessfull!");
-
-            router.push('/admin/user');
-
-        })
-        .catch(err=>{
-            showError(handleError(err))
-        });
-
-        // clear form
-        setFormData({
-            name: "",
-            email: "",
-            password: "",
-            role: ""
-        })
-    }
-
-    useEffect(()=>{
-        fetcUserById();
-    },[])
-
-  return (
-    <div >
-        <h1 className='mb-[30px] pb-2 border-b-2 text-[30px] font-bold'>Edit User</h1>
-        <form onSubmit={createNewUser}>
-            <div className='grid grid-cols-2 gap-[30px]'>
-                <div className='col-span-1'>
-                    <label htmlFor="nameField">Name</label>
-                    <input type="text" name='name' onChange={handleChange} value={formData?.name} id='nameField' className='w-full py-3 px-5 border border-[#666]' placeholder='Enter Name' />
-                </div>
-                <div className='col-span-1'>
-                    <label htmlFor="emailField">Email</label>
-                    <input type="text" name='email' onChange={handleChange} value={formData?.email} id='emailField' className='w-full py-3 px-5 border border-[#666]' placeholder='Enter Email'/>
-                </div>
-                <div className='col-span-1'>
-                    <label htmlFor="passwordField">Password</label>
-                    <input type="text" name='password' onChange={handleChange} value={formData?.password} id='passwordField' className='w-full py-3 px-5 border border-[#666]' placeholder='Enter Name' />
-                </div>
-                <div className='col-span-1'>
-                    <label htmlFor="roleField">Role</label>
-                    <select name="role" id="roleField" onChange={handleChange} value={formData?.role} className='w-full py-3 px-5 border border-[#666]'>
-                        <option value="">Select Role</option>
-                        <option value="ADMIN">ADMIN</option>
-                        <option value="ARTIST_MANAGER">ARTIST_MANAGER</option>
-                        <option value="USER">USER</option>
-                    </select>
-                </div>
-                <div className='col-span-2'>
-                    <button type='submit' className='btn btn-success text-white'>Update User</button>
-                </div>
-            </div>
-        </form>
-    </div>
-  )
+    return (
+        <div>
+            <h1 className='mb-[30px] pb-2 border-b-2 text-[30px] font-bold'>User Details</h1>
+            <table className='table table-caption'>
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <td>{user.name}</td>
+                    </tr>
+                    <tr>
+                        <th>Email</th>
+                        <td>{user.email}</td>
+                    </tr>
+                    <tr>
+                        <th>Gender</th>
+                        <td>{user.gender}</td>
+                    </tr>
+                    <tr>
+                        <th>Role</th>
+                        <td>{user.role}</td>
+                    </tr>
+                    <tr>
+                        <th>Artists</th>
+                        <td>
+                            <ul>
+                                {user.Artist && user.Artist.length > 0 ? (
+                                    user.Artist.map((artist) => (
+                                        <li key={artist.id}>{artist.name}</li>
+                                    ))
+                                ) : (
+                                    <li>No artists available.</li> // Handle case with no artists
+                                )}
+                            </ul>
+                        </td>
+                    </tr>
+                </thead>
+            </table>
+            <Link href={`/admin/user/edit/${user.id}`} className='btn btn-primary'>Edit User</Link>
+        </div>
+    );
 }

@@ -37,7 +37,7 @@ export async function POST(request: NextRequest){
             { status: 400}
         )
     }
- 
+
     // check existing email
     const isUserExist = await prisma.user.findUnique({
         where: {

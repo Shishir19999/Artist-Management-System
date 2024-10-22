@@ -3,32 +3,28 @@ import prisma from "../../../../../prisma/PrismaClient";
 import { UserSchema } from "../UserSchema";
 import bcrypt from 'bcrypt';
 
-interface Props {
-    params: {
-        user_id: string;
-    };
-}
-
 enum Role {
     ADMIN = "ADMIN",
     USER = "USER",
-    GUEST = "GUEST",
+    ARTIST_MANAGER = "ARTIST_MANAGER"
 }
 
 interface User {
     name: string;
     email: string;
     password: string;
-    role: Role
+    role: Role;
 }
 
 /**
  * Fetch Single User
  */
-export async function GET(request: NextRequest, { params: { user_id } }: Props) {
+export async function GET(request: NextRequest, { params }: { params: { user_id: string } }) {
+    const { user_id } = await params; // Unwrap the params
+
     const user = await prisma.user.findUnique({
         where: {
-            id: user_id 
+            id: user_id
         },
         include: {
             artist: {
@@ -55,13 +51,14 @@ export async function GET(request: NextRequest, { params: { user_id } }: Props) 
 /**
  * Update User Data
  */
-export async function PUT(request: NextRequest, { params: { user_id } }: Props) {
+export async function PUT(request: NextRequest, { params }: { params: { user_id: string } }) {
+    const { user_id } = await params; // Unwrap the params
     const reqData: User = await request.json();
 
     // Find the user by id
     const user = await prisma.user.findUnique({
         where: {
-            id: user_id 
+            id: user_id
         }
     });
 
@@ -107,6 +104,7 @@ export async function PUT(request: NextRequest, { params: { user_id } }: Props) 
             name: reqData.name,
             email: reqData.email,
             password: hashedPassword,
+            role: reqData.role
         }
     });
 
@@ -119,11 +117,13 @@ export async function PUT(request: NextRequest, { params: { user_id } }: Props) 
 /**
  * Delete User Data
  */
-export async function DELETE(request: NextRequest, { params: { user_id } }: Props) {
+export async function DELETE(request: NextRequest, { params }: { params: { user_id: string }}) {
+    const { user_id } = await params; 
+
     // Find the user by id
     const user = await prisma.user.findUnique({
         where: {
-            id: user_id // No need to parseInt
+            id: user_id
         }
     });
 
@@ -137,7 +137,7 @@ export async function DELETE(request: NextRequest, { params: { user_id } }: Prop
     // Delete the user
     const deletedUser = await prisma.user.delete({
         where: {
-            id: user_id // No need to parseInt
+            id: user_id
         }
     });
 
