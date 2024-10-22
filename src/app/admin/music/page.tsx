@@ -1,92 +1,114 @@
-"use client"; 
-
-import GoToBack from '@/components/GoToBack';
-import React from 'react';
+"use client"
+import GoToBack from '@/components/GoToBack'
+import axios from 'axios';
+import React, { useState } from 'react'
+import { useEffectOnce } from 'react-use';
+import { showError, showSucces } from "@/utils/notify"
+import Link from 'next/link';
 import { FaEdit } from "react-icons/fa";
+import { IoEyeSharp } from "react-icons/io5";
 import { MdDelete } from "react-icons/md";
-import { IoMdEye } from "react-icons/io";
 
-export default function MusicList() {
-  const musicTracks = [
-    {
-      id: 1,
-      title: "Blinding Lights",
-      album: "After Hours",
-      genre: "Synthwave",
-    },
-    {
-      id: 2,
-      title: "Levitating",
-      album: "Future Nostalgia",
-      genre: "Pop",
-    },
-    {
-      id: 3,
-      title: "Save Your Tears",
-      album: "After Hours",
-      genre: "Synth-pop",
-    },
-    {
-      id: 4,
-      title: "Peaches",
-      album: "Justice",
-      genre: "R&B",
-    },
-    {
-      id: 5,
-      title: "Kiss Me More",
-      album: "Planet Her",
-      genre: "Pop",
-    },
-  ];
+
+
+interface User{
+  id: number,
+  name: string,
+  email: string,
+  profile_image: string,
+  gender: string,
+  role: string,
+  created_at: Date,
+  updated_at: Date,
+}
+export default function page() {
+  const [users, setUsers] = useState<User[]>([]);
+  const [isLoading, setLoading] = useState(false);
+
+  const fetchUsersData = () =>{
+    setLoading(true);
+
+   axios.get('http://localhost:3000/api/users')
+   .then(res =>{
+    setUsers(res.data.users);
+    setLoading(false);
+  })
+  .catch(err=>{
+    setLoading(false);
+   })
+  }
+
+  useEffectOnce(() =>{
+    fetchUsersData();
+  })
+
+  const handleDelete = (id:number) => {
+    axios.delete(`http://localhost:3000/api/users/${id}`)
+    .then(res =>{
+
+      showSucces("User Deleted Successfull!");
+
+      // setUsers(users.filter(item => item.id != id))
+      fetchUsersData();
+
+    })
+    .catch((err:any) =>{
+      console.log(err);
+      showError(err);
+    })
+  }
 
   return (
     <div>
-      <GoToBack />
-      <div className="flex justify-between items-center">
-      <h1 className="text-2xl font-bold mb-4">Music List</h1>
-      <button className="btn btn-success text-white mb-[4px]">
-          Create Music
-        </button>
+        <GoToBack/>
+        <div className='flex justify-between items-center'>
+        <h1>Users List</h1>
+        <Link href="/admin/user/create" className='btn btn-success'>Create User</Link>
         </div>
-      <table className='table table-bordered mb-4 border-b pb-3'>
-        <thead>
-          <tr className='text-[20px] bg-black text-white'>
-            <th className="w-[5%]">SN</th>
-            <th className="w-[15%]">Title</th>
-            <th className="w-[20%]">Album</th>
-            <th className="w-[15%]">Genre</th>
-            <th className="w-[7%]">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {musicTracks.length > 0 ? (
-            musicTracks.map((track, index) => (
-              <tr key={track.id}>
-                <td>{index + 1}</td>
-                <td>{track.title}</td>
-                <td>{track.album}</td>
-                <td>{track.genre}</td>
-                <td className="flex space-x-2">
-                  <button className="bg-blue-500 py-2 px-4 text-white rounded-lg">
-                    <IoMdEye />
-                  </button>
-                  <button className="bg-green-500 py-2 px-4 text-white rounded-lg">
-                    <FaEdit />
-                  </button>
-                  <button className="bg-red-500 py-2 px-4 text-white rounded-lg">
-                    <MdDelete />
-                  </button>
-                </td>
-              </tr>
-            ))
-          ) : (
-            <tr>
-              <td colSpan={5} className="text-center">No music tracks found</td>
+        <table className='table table-zebra'>
+          <thead>
+            <tr className='text-[20px] bg-black text-white'>
+              <th>SN</th>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Gender</th>
+              <th>Role</th>
+              <th>Actions</th>
             </tr>
-          )}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+          {
+            isLoading
+            ? <tr> 
+                <td colSpan={10} className='bg-black'>Loading</td>
+              </tr>
+            :            users.length > 0 && users.map(user =>{
+              return(
+                <tr key={user.id}>
+                <td>SN</td>
+                  <td>{user.name}</td>
+                  <td>{user.email}</td>
+                  <td>{user.gender}</td>
+                  <td>{user.role}</td>
+                  <td>
+                    <Link href={`/admin/user/edit/${user.id}`} className='btn bg-green-500 py-3 px-4 text-white  rounded-lg'>
+                      
+                      <FaEdit/>
+                    </Link>
+                    <Link href={`/admin/user/show/${user.id}`} className='btn bg-blue-500 py-3 px-4 text-white  rounded-lg'>
+                      <IoEyeSharp/>
+                    </Link>
+                    <button type='button' onClick={()=> handleDelete(user.id)} className='btn bg-red-500 py-3 px-4 text-white  rounded-lg'><MdDelete/></button>
+                  
+                  </td>
+                </tr>
+                
+              )
+            })
+          }
+            
+          </tbody>
+        </table>
     </div>
-  );
+  )
 }

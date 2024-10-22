@@ -25,7 +25,7 @@ export async function POST(request: NextRequest){
             first_release_year: reqData.first_release_year,
             total_albums: parseInt(reqData.total_albums),
             address: reqData.address,
-            created_by: 2
+            created_by: "2"
         }
     });
 

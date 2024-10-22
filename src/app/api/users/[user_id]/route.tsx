@@ -61,7 +61,7 @@ export async function PUT(request: NextRequest, { params: { user_id } }: Props) 
     // Find the user by id
     const user = await prisma.user.findUnique({
         where: {
-            id: user_id // Again, no need to parseInt
+            id: user_id 
         }
     });
 
@@ -107,7 +107,6 @@ export async function PUT(request: NextRequest, { params: { user_id } }: Props) 
             name: reqData.name,
             email: reqData.email,
             password: hashedPassword,
-            role: reqData.role
         }
     });
 

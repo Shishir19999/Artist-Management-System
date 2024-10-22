@@ -5,6 +5,12 @@ import React, { useState } from 'react'
 import { useEffectOnce } from 'react-use';
 import { showError, showSucces } from "@/utils/notify"
 import Link from 'next/link';
+import { FaEdit } from "react-icons/fa";
+import { IoEyeSharp } from "react-icons/io5";
+import { MdDelete } from "react-icons/md";
+
+
+
 interface User{
   id: number,
   name: string,
@@ -85,15 +91,14 @@ export default function page() {
                   <td>{user.gender}</td>
                   <td>{user.role}</td>
                   <td>
-                    <Link href={`/admin/user/edit/${user.id}`} className='btn btn-secondary'>
-                      {/* show Icon */}
-                      Edit
+                    <Link href={`/admin/user/edit/${user.id}`} className='btn bg-green-500 py-3 px-4 text-white  rounded-lg'>
+                      
+                      <FaEdit/>
                     </Link>
-                    <Link href={`/admin/user/show/${user.id}`} className='btn btn-primary mx-2'>
-                      {/* show Icon */}
-                      Show
+                    <Link href={`/admin/user/show/${user.id}`} className='btn bg-blue-500 py-3 px-4 text-white  rounded-lg'>
+                      <IoEyeSharp/>
                     </Link>
-                    <button type='button' onClick={()=> handleDelete(user.id)} className='btn btn-error'>Delete</button>
+                    <button type='button' onClick={()=> handleDelete(user.id)} className='btn bg-red-500 py-3 px-4 text-white  rounded-lg'><MdDelete/></button>
                   
                   </td>
                 </tr>
