@@ -48,36 +48,39 @@ model User {
   role          Role      @default(USER)
   accounts      Account[]
   sessions      Session[]
-  artist        Artist[]  // Ensure this matches the relation field name in Prisma query
+  artist        Artist[]  // One-to-many relation with Artist
 
   @@map("users")
 }
 
 model Artist {
-  id                 Int      @id @default(autoincrement())
+  id                 String   @id @default(cuid())
   name               String
+  email              String?  @unique
+  password           String?
   gender             Gender   @default(MALE)
   dob                String
   first_release_year String
   total_albums       Int
   address            String
-  createdBy          String   // Changed to `createdBy` for clarity, and to match the relation
+  createdBy          String   // Foreign key for User model
   created_at         DateTime @default(now())
   updated_at         DateTime @updatedAt
 
-  user  User    @relation(fields: [createdBy], references: [id])  // Reference to User's id
-  Music Music[] // One-to-many relation with Music
+  user  User    @relation(fields: [createdBy], references: [id]) // Reference to User's id
+  music Music[] // Corrected to lowercase 'music' to match common convention
 }
 
 model Music {
   id         Int      @id @default(autoincrement())
   title      String
   album      String
-  Genre      Genre    @default(CLASSIC)
-  artist_id  Int
+  genre      Genre    @default(CLASSIC)
+  artist_id  String   // Foreign key for Artist
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
-  Artist     Artist   @relation(fields: [artist_id], references: [id])
+
+  artist Artist @relation(fields: [artist_id], references: [id]) // Reference to Artist's id
 }
 
 model VerificationToken {
