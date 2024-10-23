@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "../../../../../prisma/PrismaClient";
-import { ArtistSchema } from "../ArtistSchema";
+import { ArtistSchema } from "../ArtistSchema"; // Ensure this schema is properly defined
 import bcrypt from 'bcrypt';
 
 enum Gender {
@@ -18,24 +18,25 @@ interface Artist {
     total_albums: string;  // This will be a string from the request body
     address: string;
     dob: string;
+    
 }
 
 /**
  * Fetch Single Artist with Music List
  */
-export async function GET(request: NextRequest, { params }: { params: { user_id: string } }) {
-    const { user_id } = await params; // Unwrap the params
+export async function GET(request: NextRequest, { params }: { params: { artist_id: string } }) {
+    const { artist_id } = params; // artist_id is a string
 
     const artist = await prisma.artist.findUnique({
         where: {
-            id: user_id 
+            id: artist_id
         },
         include: {
-            Music: {  
+            music: {
                 select: {
                     title: true,
                     album: true,
-                    Genre: true,
+                    genre: true,
                     created_at: true,
                 }
             }
@@ -50,7 +51,7 @@ export async function GET(request: NextRequest, { params }: { params: { user_id:
     }
 
     return NextResponse.json(
-        { artist, musicList: artist.Music },  // Return both artist and their music
+        { artist, musicList: artist.music },  
         { status: 200 }
     );
 }
@@ -58,14 +59,14 @@ export async function GET(request: NextRequest, { params }: { params: { user_id:
 /**
  * Update Artist Data
  */
-export async function PUT(request: NextRequest, { params }: { params: { user_id: string } }) {
-    const { user_id } = await params; // Unwrap the params
+export async function PUT(request: NextRequest, { params }: { params: { artist_id: string } }) {
+    const { artist_id } = params; // Unwrap the params as a string
     const reqData: Artist = await request.json();
 
     // Find the artist by id
     const artist = await prisma.artist.findUnique({
         where: {
-            id: user_id
+            id: artist_id // Ensure artist_id is used as a string
         }
     });
 
@@ -108,7 +109,7 @@ export async function PUT(request: NextRequest, { params }: { params: { user_id:
     // Update the artist data
     const updatedArtist = await prisma.artist.update({
         where: {
-            id: artist.id
+            id: artist.id // Ensure id is used as a string
         },
         data: {
             name: reqData.name,
@@ -131,13 +132,13 @@ export async function PUT(request: NextRequest, { params }: { params: { user_id:
 /**
  * Delete Artist Data
  */
-export async function DELETE(request: NextRequest, { params }: { params: { user_id: string } }) {
-    const { user_id } = await params; 
+export async function DELETE(request: NextRequest, { params }: { params: { artist_id: string } }) {
+    const { artist_id } = params; // Unwrap the params as a string
 
     // Find the artist by id
     const artist = await prisma.artist.findUnique({
         where: {
-            id: user_id
+            id: artist_id // Use artist_id as a string here
         }
     });
 
@@ -151,7 +152,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { user_
     // Delete the artist
     const deletedArtist = await prisma.artist.delete({
         where: {
-            id: user_id
+            id: artist_id // Ensure id is used as a string
         }
     });
 

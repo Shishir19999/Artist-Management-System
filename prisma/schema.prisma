@@ -48,7 +48,7 @@ model User {
   role          Role      @default(USER)
   accounts      Account[]
   sessions      Session[]
-  artist        Artist[]  // One-to-many relation with Artist
+  artist        Artist[] // One-to-many relation with Artist
 
   @@map("users")
 }
@@ -63,24 +63,24 @@ model Artist {
   first_release_year String
   total_albums       Int
   address            String
-  createdBy          String   // Foreign key for User model
+  createdBy          String
   created_at         DateTime @default(now())
   updated_at         DateTime @updatedAt
 
-  user  User    @relation(fields: [createdBy], references: [id]) // Reference to User's id
-  music Music[] // Corrected to lowercase 'music' to match common convention
+  user  User    @relation(fields: [createdBy], references: [id])
+  music Music[]
 }
 
 model Music {
-  id         Int      @id @default(autoincrement())
+  id         String   @id @default(cuid())
   title      String
   album      String
   genre      Genre    @default(CLASSIC)
-  artist_id  String   // Foreign key for Artist
+  artist_id  String
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
-  artist Artist @relation(fields: [artist_id], references: [id]) // Reference to Artist's id
+  artist Artist @relation(fields: [artist_id], references: [id]) // Relation to Artist
 }
 
 model VerificationToken {
