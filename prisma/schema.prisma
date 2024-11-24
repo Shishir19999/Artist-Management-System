@@ -1,0 +1,112 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String  @map("user_id")
+  type              String
+  provider          String
+  providerAccountId String  @map("provider_account_id")
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id")
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime? @map("email_verified")
+  password      String?
+  image         String?
+  gender        Gender    @default(MALE)
+  role          Role      @default(USER)
+  accounts      Account[]
+  sessions      Session[]
+  artist        Artist[] // One-to-many relation with Artist
+
+  @@map("users")
+}
+
+model Artist {
+  id                 String   @id @default(cuid())
+  name               String
+  email              String?  @unique
+  password           String?
+  gender             Gender   @default(MALE)
+  first_release_year String?
+  total_albums       Int?
+  address            String?
+  createdBy          String?
+  created_at         DateTime @default(now())
+  updated_at         DateTime @updatedAt
+
+  user  User?   @relation(fields: [createdBy], references: [id])
+  music Music[]
+}
+
+model Music {
+  id         String   @id @default(cuid())
+  title      String
+  album      String?
+  genre      Genre    @default(CLASSIC)
+  artistId   String?
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  artist Artist? @relation(fields: [artistId], references: [id]) // Relation to Artist
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+enum Genre {
+  RNB
+  COUNTRY
+  CLASSIC
+  ROCK
+  JAZZ
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum Role {
+  USER
+  ARTIST_MANAGER
+  ADMIN
+}
