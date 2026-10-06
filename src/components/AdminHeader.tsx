@@ -4,15 +4,14 @@ import { useHoverDirty } from 'react-use';
 import { FaRegUser } from "react-icons/fa";
 import { FaBarsStaggered } from "react-icons/fa6";
 import { CiLogout } from "react-icons/ci";
-import { useRouter } from 'next/navigation';
+import { signOut } from 'next-auth/react';
 
-export default function AdminHeader() {
-  const router = useRouter();
-  const ref = useRef(null);
+export default function AdminHeader({ label, role }: { label: string; role: string }) {
+  const ref = useRef<HTMLDivElement>(null!) // react-use types want a non-null RefObject;
   const isHovering = useHoverDirty(ref);
 
   const handleLogout = () =>{
-    router.push("/auth/login");
+    signOut({ callbackUrl: "/auth/login" });
   }
 
   return (
@@ -23,11 +22,11 @@ export default function AdminHeader() {
 
       <div ref={ref} className='relative flex gap-3 items-center h-[50px]'>
         <FaRegUser/>
-        <span>Admin</span>
+        <span>{label} ({role})</span>
 
         {
           isHovering && 
-            <div className='absolute right-0 top-[100%] w-[200px] bg-slate-300 p-[15px] rounded-lg items-center gap-3 flex z-[999]'>
+            <div className='absolute right-0 top-full bg-black w-[200px] p-[15px] rounded-lg items-center gap-3 flex z-999'>
               <button onClick={handleLogout} className='flex items-center gap-2'>
                 <CiLogout />
                 <span>Logout</span>

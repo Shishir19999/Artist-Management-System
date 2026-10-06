@@ -1,15 +1,14 @@
 "use client";
 import { baseUrl } from '@/utils/baseURL';
 import axios from 'axios';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, use } from 'react';
 import { showError } from "@/utils/notify";
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 interface Props {
-    params: {
+    params: Promise<{
         music_id: string;
-    }
+    }>
 }
 
 enum Genre{
@@ -32,8 +31,13 @@ interface Music{
     artist?: Artist
 }
 
-export default function ShowMusic({ params: { music_id } }: Props) {
-    const router = useRouter();
+export default function ShowMusic(props: Props) {
+    const params = use(props.params);
+
+    const {
+        music_id
+    } = params;
+
     const [music, setMusic] = useState<Music | null>(null); // Start as null
     const [loading, setLoading] = useState(true); // Loading state
 

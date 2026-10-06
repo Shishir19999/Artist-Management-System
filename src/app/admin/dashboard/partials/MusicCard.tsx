@@ -11,12 +11,12 @@ export default function MusicCard() {
   const fetchMusicsData = () =>{
     setLoading(true);
 
-   axios.get('http://localhost:3000/api/musics')
+   axios.get('/api/musics')
    .then(res =>{
     setMusics(res.data.musics);
     setLoading(false);
   })
-  .catch(err=>{
+  .catch(() => {
     setLoading(false);
    })
   }

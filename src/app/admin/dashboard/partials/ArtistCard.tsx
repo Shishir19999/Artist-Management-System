@@ -11,12 +11,12 @@ export default function ArtistCard() {
   const fetchArtistData = async () => {
     setLoading(true);
       
-      axios.get('http://localhost:3000/api/artists')
+      axios.get('/api/artists')
       .then(res=>{
         setArtists(res.data.artists);
         setLoading(false);
       })
-      .catch(err=>{
+      .catch(() => {
         setLoading(false);
        })
   };

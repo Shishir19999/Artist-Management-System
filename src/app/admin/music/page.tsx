@@ -28,12 +28,12 @@ export default function ShowMusics(){
     const [isLoading, setLoading] = useState(false);
     const fetchMusicsData=()=>{
         setLoading(true);
-        axios.get('http://localhost:3000/api/musics')
+        axios.get('/api/musics')
         .then(res=>{
             setMusics(res.data.musics);
             setLoading(false);
         })
-        .catch(err=>{
+        .catch(() => {
             setLoading(false);
         })
     }
@@ -41,15 +41,15 @@ export default function ShowMusics(){
         fetchMusicsData();
     })
     const handleDelete = (id:number) => {
-      axios.delete(`http://localhost:3000/api/musics/${id}`)
-      .then(res =>{
+      axios.delete(`/api/musics/${id}`)
+      .then(() =>{
   
         showSucces("Music Deleted Successfull!");
   
         fetchMusicsData();
   
       })
-      .catch((err:any) =>{
+      .catch((err: unknown) =>{
         console.log(err);
         showError(err);
       })
@@ -62,7 +62,7 @@ export default function ShowMusics(){
         <h1>Musics List</h1>
         <Link href="/admin/music/create" className='btn btn-success'>Create Music</Link>
         </div>
-        <table className='table table-zebra'>
+        <table className='table table-white'>
           <thead>
             <tr className='text-[20px] bg-black text-white'>
               <th>SN</th>
@@ -80,7 +80,7 @@ export default function ShowMusics(){
               </tr>
             :            musics.length > 0 && musics.map(music =>{
               return(
-                <tr key={music.id}>
+                <tr key={music.id} className=' bg-white text-black'>
                 <td>SN</td>
                   <td>{music.title}</td>
                   <td>{music.album}</td>

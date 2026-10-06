@@ -1,122 +1,86 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "../../../../../prisma/PrismaClient";
 import { MusicSchema } from "../MusicSchema";
+import { authorize, badJson, canManage, readJson } from "@/lib/authz";
 
-enum Genre{
-    RNB = "RNB",
-    COUNTRY = "COUNTRY",
-    CLASSIC = "CLASSIC",
-    ROCK="ROCK",
-    JAZZ="JAZZ"
-}
+type Ctx = { params: Promise<{ music_id: string }> };
 
-interface Music{
-    title: string,
-    album: string,
-    genre: Genre,
-    artistId:string
-}
-
-export async function GET(request: NextRequest, { params }: { params: { music_id: string } }) {
-    const { music_id } = await params; 
+export async function GET(request: NextRequest, props: Ctx) {
+    const params = await props.params;
+    const auth = await authorize(["ADMIN", "ARTIST_MANAGER", "USER"]);
+    if (auth.error) return auth.error;
 
     const music = await prisma.music.findUnique({
-        where: {
-            id: music_id
-        },
-        include: {
-            artist: {
-                select: {
-                   name:true
-                }
-            }
-        }
+        where: { id: params.music_id },
+        include: { artist: { select: { name: true, createdBy: true } } }
     });
-    if (!music) {
-        return NextResponse.json(
-            { error: "Music not found!" },
-            { status: 404 }
-        );
+
+    // USER may only read music of artists they own
+    if (!music || (!canManage(auth.user.role) && music.artist?.createdBy !== auth.user.id)) {
+        return NextResponse.json({ error: "Music not found!" }, { status: 404 });
     }
 
+    const { artist, ...rest } = music;
     return NextResponse.json(
-        { music },
+        { music: { ...rest, artist: artist ? { name: artist.name } : null } },
         { status: 200 }
     );
 }
-export async function PUT(request: NextRequest) {
-    const reqData: Music = await request.json();
 
-    console.log("reqData : ", reqData);
+// Update an existing music record (previously this handler wrongly created a new one)
+export async function PUT(request: NextRequest, props: Ctx) {
+    const params = await props.params;
+    const auth = await authorize(["ADMIN", "ARTIST_MANAGER"]);
+    if (auth.error) return auth.error;
+
+    const reqData = await readJson(request);
+    if (reqData === null) return badJson();
 
     const validation = MusicSchema.safeParse(reqData);
-
     if (!validation.success) {
-        return NextResponse.json(
-            { error: validation.error.errors },
-            { status: 400 }
-        );
+        return NextResponse.json({ error: validation.error.issues }, { status: 400 });
+    }
+    const data = validation.data;
+
+    const music = await prisma.music.findUnique({ where: { id: params.music_id } });
+    if (!music) {
+        return NextResponse.json({ error: "Music not found!" }, { status: 404 });
     }
 
-    // Check if the user with createdBy ID exists
-    const existingArtist = await prisma.artist.findUnique({
-        where: { id: reqData.artistId }, // Assuming reqData.created_by is passed in the request
-    });
-
-    if (!existingArtist) {
-        return NextResponse.json(
-            { error: "Music not found for the provided Artist ID" },
-            { status: 400 }
-        );
+    if (data.artistId) {
+        const existingArtist = await prisma.artist.findUnique({ where: { id: data.artistId } });
+        if (!existingArtist) {
+            return NextResponse.json(
+                { error: "Artist not found for the provided Artist ID" },
+                { status: 400 }
+            );
+        }
     }
-    const newMusic = await prisma.music.create({
+
+    const updatedMusic = await prisma.music.update({
+        where: { id: music.id },
         data: {
-                title:reqData.title,
-                album:reqData.album, 
-                genre:reqData.genre,
-                artist:{
-                    connect:{id:reqData.artistId}
-                }
-            } 
-        
+            title: data.title,
+            album: data.album,
+            genre: data.genre,
+            ...(data.artistId ? { artist: { connect: { id: data.artistId } } } : {})
+        }
     });
 
-    if (newMusic) {
-        return NextResponse.json(
-            { newMusic},
-            { status: 200 }
-        );
-    }
-
-    return NextResponse.json(
-        { error: "Error in creating Music" },
-        { status: 400 }
-    );
+    return NextResponse.json({ updatedData: updatedMusic }, { status: 200 });
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: { music_id: string }}) {
-    const {music_id } = await params; 
+export async function DELETE(request: NextRequest, props: Ctx) {
+    const params = await props.params;
+    const auth = await authorize(["ADMIN", "ARTIST_MANAGER"]);
+    if (auth.error) return auth.error;
 
-    // Find the artist by id
-    const music = await prisma.music.findUnique({
-        where: {
-            id: music_id
-        }
-    });
-
+    const music = await prisma.music.findUnique({ where: { id: params.music_id } });
     if (!music) {
-        return NextResponse.json(
-            { error: "music not found" },
-            { status: 404 }
-        );
+        return NextResponse.json({ error: "music not found" }, { status: 404 });
     }
 
-    // Delete the artist
-    const deletedMusic = await prisma.music.delete({
-        where: {
-            id: music_id
-        }
-    });
+    const deletedMusic = await prisma.music.delete({ where: { id: music.id } });
 
     return NextResponse.json(
         { deletedMusic, msg: "Music deleted successfully!" },

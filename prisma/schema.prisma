@@ -4,7 +4,6 @@ generator client {
 
 datasource db {
   provider = "mysql"
-  url      = env("DATABASE_URL")
 }
 
 model Account {
@@ -46,6 +45,7 @@ model User {
   image         String?
   gender        Gender    @default(MALE)
   role          Role      @default(USER)
+  tokenVersion  Int       @default(0) @map("token_version")
   accounts      Account[]
   sessions      Session[]
   artist        Artist[] // One-to-many relation with Artist

@@ -1,7 +1,10 @@
 import { PrismaClient } from '@prisma/client'
+import { PrismaMariaDb } from '@prisma/adapter-mariadb'
 
+// Prisma 7 talks to MySQL/MariaDB through a driver adapter (no Rust query engine).
 const prismaClientSingleton = () => {
-  return new PrismaClient()
+  const adapter = new PrismaMariaDb(process.env.DATABASE_URL as string)
+  return new PrismaClient({ adapter })
 }
 
 declare const globalThis: {

@@ -1,32 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { MusicSchema} from "./MusicSchema";
 import prisma from "./../../../../prisma/PrismaClient";
+import { authorize, badJson, canManage, readJson } from "@/lib/authz";
 
-enum Genre{
-    RNB = "RNB",
-    COUNTRY = "COUNTRY",
-    CLASSIC = "CLASSIC",
-    ROCK="ROCK",
-    JAZZ="JAZZ"
-}
+// ADMIN/ARTIST_MANAGER: all music. USER: only music of artists they created.
+export async function GET() {
+    const auth = await authorize(["ADMIN", "ARTIST_MANAGER", "USER"]);
+    if (auth.error) return auth.error;
 
-interface Music{
-    title: string,
-    album: string,
-    genre: Genre,
-    artistId:string
-}
-
-export async function GET(request: NextRequest) {
     try {
-        const allMusics = await prisma.music.findMany();
+        const allMusics = await prisma.music.findMany({
+            where: canManage(auth.user.role) ? undefined : { artist: { createdBy: auth.user.id } }
+        });
 
         return NextResponse.json(
             { musics: allMusics, total_count: allMusics.length },
             { status: 200 }
         );
     } catch (error) {
-        console.error("Error fetching music:", error); // Log the error for debugging
+        console.error("Error fetching music:", error);
         return NextResponse.json(
             { error: "Failed to fetch music data." },
             { status: 500 }
@@ -36,17 +28,21 @@ export async function GET(request: NextRequest) {
 
 
 export async function POST(request: NextRequest){
-    const reqData: Music = await request.json();
+    const auth = await authorize(["ADMIN", "ARTIST_MANAGER"]);
+    if (auth.error) return auth.error;
 
-    // validation
+    const reqData = await readJson(request);
+    if (reqData === null) return badJson();
+
     const validation = MusicSchema.safeParse(reqData);
     if(!validation.success){
         return NextResponse.json(
-            { error: validation.error.errors },
+            { error: validation.error.issues },
             { status: 400}
         )
     }
-    if (!reqData.artistId) {
+    const data = validation.data;
+    if (!data.artistId) {
         return NextResponse.json(
             { error: "Artist ID is required." },
             { status: 400 }
@@ -54,7 +50,7 @@ export async function POST(request: NextRequest){
     }
 
     const existingArtist = await prisma.artist.findUnique({
-        where: { id: reqData.artistId },
+        where: { id: data.artistId },
     });
     if (!existingArtist) {
         return NextResponse.json(
@@ -62,23 +58,16 @@ export async function POST(request: NextRequest){
             { status: 400 }
         );
     }
-    
-        
 
     const newMusic = await prisma.music.create({
         data: {
-            title:reqData.title,
-            album:reqData.album, 
-            genre:reqData.genre,
-            artist:{
-                connect:{
-                    id:reqData.artistId,
-                }
-            }
+            title: data.title,
+            album: data.album,
+            genre: data.genre,
+            artist: { connect: { id: data.artistId } }
         }
     })
 
-    // reponse inserted data
     return NextResponse.json(
         { data: newMusic },
         { status: 200}

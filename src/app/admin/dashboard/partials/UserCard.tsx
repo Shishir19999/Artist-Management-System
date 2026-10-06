@@ -11,12 +11,12 @@ export default function UserCard() {
   const fetchUsersData = () =>{
     setLoading(true);
 
-   axios.get('http://localhost:3000/api/users')
+   axios.get('/api/users')
    .then(res =>{
     setUsers(res.data.users);
     setLoading(false);
   })
-  .catch(err=>{
+  .catch(() => {
     setLoading(false);
    })
   }

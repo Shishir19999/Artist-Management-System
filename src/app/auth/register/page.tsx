@@ -2,181 +2,101 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { signIn } from "next-auth/react";
 import { useState } from "react";
+import axios from "axios";
+import { showError, showSucces } from "@/utils/notify";
+import { handleError } from "@/utils/errorsHandle";
+
+type Field = "name" | "email" | "password";
 
 export default function RegisterPage() {
   const router = useRouter();
 
   const [isRegistering, setRegistering] = useState(false);
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    password: "",
-    phone: "",
-    address: "",
-    gender: "",
-    birthDate: "",
-    role: "",
-  });
+  const [formData, setFormData] = useState({ name: "", email: "", password: "" });
+  const [errors, setErrors] = useState<Partial<Record<Field, string>>>({});
 
-  const [formErrors, setFormErrors] = useState({
-    nameError: "",
-    emailError: "",
-    passwordError: "",
-    phoneError: "",
-    addressError: "",
-    genderError: "",
-    birthDateError: "",
-    roleError: "",
-  });
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const validate = () => {
+    const next: Partial<Record<Field, string>> = {};
+    if (formData.name.trim().length < 2) next.name = "Name must be at least 2 characters";
+    if (!/^\S+@\S+\.\S+$/.test(formData.email.trim())) next.email = "Enter a valid email";
+    if (formData.password.length < 8) next.password = "Password must be at least 8 characters";
+    setErrors(next);
+    return Object.keys(next).length === 0;
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!validate()) return;
 
-    let isValid = true;
-    const errors = {
-      nameError: "",
-      emailError: "",
-      passwordError: "",
-      phoneError: "",
-      addressError: "",
-      genderError: "",
-      birthDateError: "",
-      roleError: "",
-    };
+    setRegistering(true);
+    try {
+      await axios.post("/api/auth/register", formData);
+    } catch (err) {
+      showError(handleError(err));
+      setRegistering(false);
+      return;
+    }
 
-    Object.keys(formData).forEach((key) => {
-      if (!formData[key as keyof typeof formData]) {
-        errors[`${key}Error` as keyof typeof errors] = "This field is required";
-        isValid = false;
-      }
+    // sign in right away with the credentials just registered
+    const res = await signIn("credentials", {
+      email: formData.email.trim().toLowerCase(),
+      password: formData.password,
+      redirect: false,
     });
-
-    setFormErrors(errors);
-
-    if (isValid) {
-      setRegistering(true);
-
-      setTimeout(() => {
-        setRegistering(false);
-        setFormData({
-          name: "",
-          email: "",
-          password: "",
-          phone: "",
-          address: "",
-          gender: "",
-          birthDate: "",
-          role: "",
-        });
-        setFormErrors({
-          nameError: "",
-          emailError: "",
-          passwordError: "",
-          phoneError: "",
-          addressError: "",
-          genderError: "",
-          birthDateError: "",
-          roleError: "",
-        });
-        router.push('/admin/login');
-
-      }, 2000);
+    setRegistering(false);
+    if (res?.ok) {
+      showSucces("Account created!");
+      router.push("/admin/dashboard");
+      router.refresh();
+    } else {
+      showSucces("Account created. Please sign in.");
+      router.push("/auth/login");
     }
   };
 
   return (
-    <form className="w-full" onSubmit={handleSubmit}>
+    <form className="w-full" onSubmit={handleSubmit} noValidate>
       <input
         onChange={handleChange}
         type="text"
         placeholder="Name"
         name="name"
+        autoComplete="name"
         className="block w-full p-3 border mt-5"
       />
-      {formErrors.nameError && <span className="text-red-500">{formErrors.nameError}</span>}
+      {errors.name && <span className="text-red-500">{errors.name}</span>}
 
       <input
         onChange={handleChange}
         type="email"
         placeholder="Email"
         name="email"
+        autoComplete="email"
         className="block w-full p-3 border mt-5"
       />
-      {formErrors.emailError && <span className="text-red-500">{formErrors.emailError}</span>}
+      {errors.email && <span className="text-red-500">{errors.email}</span>}
 
       <input
         onChange={handleChange}
         type="password"
-        placeholder="Password"
+        placeholder="Password (min 8 characters)"
         name="password"
+        autoComplete="new-password"
         className="block w-full p-3 border mt-5"
       />
-      {formErrors.passwordError && <span className="text-red-500">{formErrors.passwordError}</span>}
-
-      <input
-        onChange={handleChange}
-        type="tel"
-        placeholder="Phone"
-        name="phone"
-        className="block w-full p-3 border mt-5"
-      />
-      {formErrors.phoneError && <span className="text-red-500">{formErrors.phoneError}</span>}
-
-      <input
-        onChange={handleChange}
-        type="date"
-        name="birthDate"
-        className="block w-full p-3 border mt-5"
-      />
-      {formErrors.birthDateError && <span className="text-red-500">{formErrors.birthDateError}</span>}
-
-      <select
-        onChange={handleChange}
-        name="gender"
-        className="block w-full p-3 border mt-5"
-      >
-        <option value="">Select Gender</option>
-        <option value="male">Male</option>
-        <option value="female">Female</option>
-        <option value="other">Other</option>
-      </select>
-      {formErrors.genderError && <span className="text-red-500">{formErrors.genderError}</span>}
-
-      <select
-        onChange={handleChange}
-        name="role"
-        className="block w-full p-3 border mt-5"
-      >
-        <option value="">Select Role</option>
-        <option value="artist">Artist</option>
-        <option value="artistmanager">Artist Manager</option>
-        <option value="superadmin">Super Admin</option>
-      </select>
-      {formErrors.roleError && <span className="text-red-500">{formErrors.roleError}</span>}
-
-      <input
-        onChange={handleChange}
-        type="text"
-        placeholder="Address"
-        name="address"
-        className="block w-full p-3 border mt-5"
-      />
-      {formErrors.addressError && <span className="text-red-500">{formErrors.addressError}</span>}
+      {errors.password && <span className="text-red-500">{errors.password}</span>}
 
       <p className="text-[#666] text-[18px] mt-[30px]">
-        Already have an account? <Link href="/auth/login">Login</Link>
+        Already have an account? <Link href="/auth/login" className="link link-primary">Login</Link>
       </p>
 
-      <button
-        disabled={isRegistering}
-        type="submit"
-        className="btn btn-primary w-full mt-[15px]"
-      >
+      <button disabled={isRegistering} type="submit" className="btn btn-primary w-full mt-[15px]">
         {isRegistering ? (
           <span className="flex items-center gap-2">
             <span className="loading loading-bars loading-sm"></span>
