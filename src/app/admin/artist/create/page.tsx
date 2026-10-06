@@ -16,10 +16,9 @@ export default function CreateNewArtist() {
         address:"",
         total_albums:0,
         first_release_year:"",
-        createdBy:"cm2wsgxs100017czeby8yxc6o"
     });
 
-    const handleChange = (e: any) => {
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, type, value } = e.target;
         const newValue = type === 'number' ? parseFloat(value) : value;
     
@@ -30,11 +29,11 @@ export default function CreateNewArtist() {
     };
     
 
-    const createNewArtist = (e:any) =>{
+    const createNewArtist = (e: React.FormEvent) =>{
         e.preventDefault();
 
         axios.post(`${baseUrl.local}/artists`, formData )
-        .then(res =>{
+        .then(() =>{
             showSucces("Artist created susccessfull!");
 
             router.push('/admin/artist');
@@ -49,12 +48,11 @@ export default function CreateNewArtist() {
             name: "",
             email: "",
             password: "",
-            gender:"",
+            gender:"MALE",
             first_release_year:"",
             total_albums: 0,
             address:"",
-            createdBy:"cm2wsgxs100017czeby8yxc6o"
-        })
+            })
     }
 
   return (
@@ -72,7 +70,7 @@ export default function CreateNewArtist() {
                 </div>
                 <div className='col-span-1'>
                     <label htmlFor="passwordField">Password</label>
-                    <input type="text" name='password' onChange={handleChange} value={formData.password} id='passwordField' className='w-full py-3 px-5 border border-[#666]' placeholder='Enter Password' />
+                    <input type="password" name='password' onChange={handleChange} value={formData.password} id='passwordField' className='w-full py-3 px-5 border border-[#666]' placeholder='Enter Password' />
                 </div>
                 <div className='col-span-1'>
                     <label htmlFor="genderField">Gender</label>
@@ -95,11 +93,6 @@ export default function CreateNewArtist() {
                     <label htmlFor="addressField">address</label>
                     <input type="text" name='address' onChange={handleChange} value={formData.address} id='addressField' className='w-full py-3 px-5 border border-[#666]' placeholder='Enter address' />
                 </div>
-                <div className='col-span-1'>
-                    <label htmlFor="createdByField">Created By</label>
-                    <input type="text" name='createdBy' onChange={handleChange} value={formData.createdBy} id='createdByField' className='w-full py-3 px-5 border border-[#666]' readOnly/>
-                </div>
-
                 <div className='col-span-2'>
                     <button type='submit' className='btn btn-success text-white'>Create Artist</button>
                 </div>

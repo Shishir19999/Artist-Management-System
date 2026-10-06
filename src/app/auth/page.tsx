@@ -1,8 +1,5 @@
-"use client";
-import { useRouter } from 'next/navigation'
+import { redirect } from "next/navigation";
 
 export default function AuthPage() {
-    const router =  useRouter();
-
-    return router.push('auth/login');
+    redirect("/auth/login");
 }

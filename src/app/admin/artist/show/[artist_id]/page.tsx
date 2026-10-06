@@ -1,15 +1,14 @@
 "use client";
 import { baseUrl } from '@/utils/baseURL';
 import axios from 'axios';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, use } from 'react';
 import { showError } from "@/utils/notify";
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
 interface Props {
-    params: {
+    params: Promise<{
         artist_id: string;
-    }
+    }>
 }
 
 interface Music {
@@ -30,8 +29,13 @@ interface Artist{
     music?: Music
 }
 
-export default function ShowArtist({ params: { artist_id } }: Props) {
-    const router = useRouter();
+export default function ShowArtist(props: Props) {
+    const params = use(props.params);
+
+    const {
+        artist_id
+    } = params;
+
     const [artist, setArtist] = useState<Artist | null>(null); // Start as null
     const [loading, setLoading] = useState(true); // Loading state
 

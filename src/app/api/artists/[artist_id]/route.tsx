@@ -2,146 +2,86 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "../../../../../prisma/PrismaClient";
 import { ArtistSchema } from "../ArtistSchema";
 import bcrypt from 'bcrypt';
+import { authorize, badJson, canManage, readJson, stripPassword } from "@/lib/authz";
 
-enum Gender{
-    MALE="MALE",
-    FEMALE="FEMALE",
-    OTHER="OTHER"
-}
-interface Artist{
-    name: string,
-    email: string,
-    password: string,
-    gender:Gender,
-    first_release_year:string,
-    total_albums:number,
-    address:string,
-    createdBy:string
-}
+type Ctx = { params: Promise<{ artist_id: string }> };
 
-export async function GET(request: NextRequest, { params }: { params: { artist_id: string } }) {
-    const { artist_id } = await params; // Unwrap the params
+export async function GET(request: NextRequest, props: Ctx) {
+    const params = await props.params;
+    const auth = await authorize(["ADMIN", "ARTIST_MANAGER", "USER"]);
+    if (auth.error) return auth.error;
 
     const artist = await prisma.artist.findUnique({
-        where: {
-            id: artist_id
-        },
+        where: { id: params.artist_id },
         include: {
-            music: {
-                select: {
-                    title: true,
-                    album:true,
-                    genre:true
-                }
-            }
+            music: { select: { title: true, album: true, genre: true } }
         }
     });
 
-    if (!artist) {
-        return NextResponse.json(
-            { error: "artist not found!" },
-            { status: 404 }
-        );
+    // USER may only read artists they own; hide existence of others
+    if (!artist || (!canManage(auth.user.role) && artist.createdBy !== auth.user.id)) {
+        return NextResponse.json({ error: "artist not found!" }, { status: 404 });
     }
 
-    return NextResponse.json(
-        { artist },
-        { status: 200 }
-    );
+    return NextResponse.json({ artist: stripPassword(artist) }, { status: 200 });
 }
 
-export async function PUT(request: NextRequest, { params }: { params: { artist_id: string } }) {
-    const { artist_id } = await params; 
-    const reqData: Artist = await request.json();
+export async function PUT(request: NextRequest, props: Ctx) {
+    const params = await props.params;
+    const auth = await authorize(["ADMIN", "ARTIST_MANAGER"]);
+    if (auth.error) return auth.error;
 
-    // Find the artist by id
-    const artist = await prisma.artist.findUnique({
-        where: {
-            id: artist_id
-        }
-    });
+    const reqData = await readJson(request);
+    if (reqData === null) return badJson();
 
+    const artist = await prisma.artist.findUnique({ where: { id: params.artist_id } });
     if (!artist) {
-        return NextResponse.json(
-            { error: "artist Not Found!" },
-            { status: 404 }
-        );
+        return NextResponse.json({ error: "artist Not Found!" }, { status: 404 });
     }
 
-    // Validate data
     const validation = ArtistSchema.safeParse(reqData);
     if (!validation.success) {
-        return NextResponse.json(
-            { error: validation.error.errors },
-            { status: 400 }
-        );
+        return NextResponse.json({ error: validation.error.issues }, { status: 400 });
     }
+    const data = validation.data;
 
-    // Check if the email already exists (ignoring the current artist)
-    const existingArtist = await prisma.artist.findUnique({
-        where: {
-            email: reqData.email
+    if (data.email) {
+        const existingArtist = await prisma.artist.findUnique({ where: { email: data.email } });
+        if (existingArtist && existingArtist.id !== artist.id) {
+            return NextResponse.json({ error: "Email is already in use." }, { status: 400 });
         }
-    });
-
-    if (existingArtist && existingArtist.id !== artist.id) {
-        return NextResponse.json(
-            { error: "Email is already in use." },
-            { status: 400 }
-        );
     }
 
-    // Hash the password asynchronously
-    const hashedPassword = await bcrypt.hash(reqData.password, 10);
-    
-    // Update the artist data
     const updatedArtist = await prisma.artist.update({
-        where: {
-            id: artist.id
-        },
+        where: { id: artist.id },
         data: {
-            name: reqData.name,
-            email: reqData.email,
-            password: hashedPassword,
-            gender: reqData.gender,
-            first_release_year: reqData.first_release_year,
-            total_albums:reqData.total_albums,
-            address: reqData.address
+            name: data.name,
+            email: data.email,
+            ...(data.password ? { password: await bcrypt.hash(data.password, 10) } : {}),
+            gender: data.gender,
+            first_release_year: data.first_release_year,
+            total_albums: data.total_albums,
+            address: data.address
         }
     });
 
-    return NextResponse.json(
-        { updatedData: updatedArtist },
-        { status: 200 }
-    );
+    return NextResponse.json({ updatedData: stripPassword(updatedArtist) }, { status: 200 });
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: { artist_id: string }}) {
-    const { artist_id } = await params; 
+export async function DELETE(request: NextRequest, props: Ctx) {
+    const params = await props.params;
+    const auth = await authorize(["ADMIN", "ARTIST_MANAGER"]);
+    if (auth.error) return auth.error;
 
-    // Find the artist by id
-    const artist = await prisma.artist.findUnique({
-        where: {
-            id: artist_id
-        }
-    });
-
+    const artist = await prisma.artist.findUnique({ where: { id: params.artist_id } });
     if (!artist) {
-        return NextResponse.json(
-            { error: "artist not found" },
-            { status: 404 }
-        );
+        return NextResponse.json({ error: "artist not found" }, { status: 404 });
     }
 
-    // Delete the artist
-    const deletedArtist = await prisma.artist.delete({
-        where: {
-            id: artist_id
-        }
-    });
+    const deletedArtist = await prisma.artist.delete({ where: { id: artist.id } });
 
     return NextResponse.json(
-        { deletedArtist, msg: "artist deleted successfully!" },
+        { deletedArtist: stripPassword(deletedArtist), msg: "artist deleted successfully!" },
         { status: 200 }
     );
 }

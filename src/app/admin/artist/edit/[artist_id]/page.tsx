@@ -1,18 +1,24 @@
 "use client"
 import { baseUrl } from '@/utils/baseURL';
 import axios from 'axios';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, use } from 'react';
 import { showError, showSucces } from "@/utils/notify"
 import { handleError } from '@/utils/errorsHandle';
 import { useRouter } from 'next/navigation';
 
 interface Props {
-    params: {
+    params: Promise<{
         artist_id: string
-    }
+    }>
 }
 
-export default function EditArtist({ params: { artist_id } }: Props) {
+export default function EditArtist(props: Props) {
+    const params = use(props.params);
+
+    const {
+        artist_id
+    } = params;
+
     const router = useRouter();
 
     const [formData, setFormData] = useState({
@@ -22,8 +28,7 @@ export default function EditArtist({ params: { artist_id } }: Props) {
         gender: "",
         address: "",
         total_albums: 0,
-        first_release_year: "",
-        createdBy: "cm2wsgxs100017czeby8yxc6o"
+        first_release_year: ""
     });
 
     const fetchArtistById = () => {
@@ -36,7 +41,7 @@ export default function EditArtist({ params: { artist_id } }: Props) {
             })
     }
 
-    const handleChange = (e: any) => {
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
         setFormData({
             ...formData,
@@ -44,11 +49,11 @@ export default function EditArtist({ params: { artist_id } }: Props) {
         });
     }
 
-    const editArtist = (e: any) => {
+    const editArtist = (e: React.FormEvent) => {
         e.preventDefault();
 
-        axios.put(`${baseUrl.local}artists/${artist_id}`, formData)
-            .then(res => {
+        axios.put(`${baseUrl.local}/artists/${artist_id}`, formData)
+            .then(() => {
                 showSucces("Artist updated susccessfull!");
 
                 router.push('/admin/artist');
@@ -66,8 +71,7 @@ export default function EditArtist({ params: { artist_id } }: Props) {
             gender: "",
             first_release_year: "",
             total_albums: 0,
-            address: "",
-            createdBy: "cm2wsgxs100017czeby8yxc6o"
+            address: ""
         })
     }
 
@@ -76,8 +80,8 @@ export default function EditArtist({ params: { artist_id } }: Props) {
     }, [])
 
     return (
-        <div >
-            <h1 className='mb-[30px] pb-2 border-b-2 text-[30px] font-bold'>Edit Artist</h1>
+        <div>
+            <h1 className='mb-[30px] pb-2 border-b-2  text-[30px] font-bold'>Edit Artist</h1>
             <form onSubmit={editArtist}>
                 <div className='grid grid-cols-2 gap-[30px]'>
                     <div className='col-span-1'>
@@ -112,10 +116,6 @@ export default function EditArtist({ params: { artist_id } }: Props) {
                     <div className='col-span-1'>
                         <label htmlFor="addressField">address</label>
                         <input type="text" name='address' onChange={handleChange} value={formData.address} id='addressField' className='w-full py-3 px-5 border border-[#666]' placeholder='Enter address' />
-                    </div>
-                    <div className='col-span-1'>
-                        <label htmlFor="createdByField">Created By</label>
-                        <input type="text" name='createdBy' onChange={handleChange} value={formData.createdBy} id='createdByField' className='w-full py-3 px-5 border border-[#666]' readOnly />
                     </div>
                     <div className='col-span-2'>
                         <button type='submit' className='btn btn-success text-white'>Edit Artist</button>

@@ -15,15 +15,15 @@ export default function CreateNewUser() {
         role: ""
     });
 
-    const handleChange = (e:any) =>{
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>{
         setFormData({ ...formData, [e.target.name]: e.target.value})
     }
 
-    const createNewUser = (e:any) =>{
+    const createNewUser = (e: React.FormEvent) =>{
         e.preventDefault();
 
         axios.post(`${baseUrl.local}/users`, formData )
-        .then(res =>{
+        .then(() =>{
             showSucces("User created susccessfull!");
 
             router.push('/admin/user');

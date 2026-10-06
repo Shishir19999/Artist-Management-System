@@ -28,12 +28,12 @@ export default function ShowUsers() {
   const fetchUsersData = () =>{
     setLoading(true);
 
-   axios.get('http://localhost:3000/api/users')
+   axios.get('/api/users')
    .then(res =>{
     setUsers(res.data.users);
     setLoading(false);
   })
-  .catch(err=>{
+  .catch(() => {
     setLoading(false);
    })
   }
@@ -43,8 +43,8 @@ export default function ShowUsers() {
   })
 
   const handleDelete = (id:number) => {
-    axios.delete(`http://localhost:3000/api/users/${id}`)
-    .then(res =>{
+    axios.delete(`/api/users/${id}`)
+    .then(() =>{
 
       showSucces("User Deleted Successfull!");
 
@@ -52,7 +52,7 @@ export default function ShowUsers() {
       fetchUsersData();
 
     })
-    .catch((err:any) =>{
+    .catch((err: unknown) =>{
       console.log(err);
       showError(err);
     })
@@ -65,7 +65,7 @@ export default function ShowUsers() {
         <h1>Users List</h1>
         <Link href="/admin/user/create" className='btn btn-success'>Create User</Link>
         </div>
-        <table className='table table-zebra'>
+        <table className='table table-white'>
           <thead>
             <tr className='text-[20px] bg-black text-white'>
               <th>SN</th>
@@ -84,7 +84,7 @@ export default function ShowUsers() {
               </tr>
             :            users.length > 0 && users.map(user =>{
               return(
-                <tr key={user.id}>
+                <tr key={user.id} className=' bg-white text-black'>
                 <td>SN</td>
                   <td>{user.name}</td>
                   <td>{user.email}</td>

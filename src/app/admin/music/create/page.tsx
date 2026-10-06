@@ -31,11 +31,11 @@ export default function CreateNewMusic() {
             });
     }, []);
 
-    const handleChange = (e: any) => {
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
-    const createNewMusic = (e: any) => {
+    const createNewMusic = (e: React.FormEvent) => {
         e.preventDefault();
 
         axios.post(`${baseUrl.local}/musics`, formData)

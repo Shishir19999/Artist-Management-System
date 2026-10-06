@@ -28,12 +28,12 @@ export default function ShowArtists(){
     const [isLoading, setLoading] = useState(false);
     const fetchArtistsData=()=>{
         setLoading(true);
-        axios.get('http://localhost:3000/api/artists')
+        axios.get('/api/artists')
         .then(res=>{
             setArtists(res.data.artists);
             setLoading(false);
         })
-        .catch(err=>{
+        .catch(() => {
             setLoading(false);
         })
     }
@@ -41,15 +41,15 @@ export default function ShowArtists(){
         fetchArtistsData();
     })
     const handleDelete = (id:number) => {
-        axios.delete(`http://localhost:3000/api/artists/${id}`)
-        .then(res =>{
+        axios.delete(`/api/artists/${id}`)
+        .then(() =>{
     
           showSucces("artist Deleted Successfull!");
     
           fetchArtistsData();
     
         })
-        .catch((err:any) =>{
+        .catch((err: unknown) =>{
           console.log(err);
           showError(err);
         })
@@ -62,7 +62,7 @@ export default function ShowArtists(){
         <h1>Artists List</h1>
         <Link href="/admin/artist/create" className='btn btn-success'>Create Artist</Link>
         </div>
-        <table className='table table-zebra'>
+        <table className='table table-white'>
           <thead>
             <tr className='text-[20px] bg-black text-white'>
               <th>SN</th>
@@ -82,7 +82,7 @@ export default function ShowArtists(){
               </tr>
             :            artists.length > 0 && artists.map(artist =>{
               return(
-                <tr key={artist.id}>
+                <tr key={artist.id} className=' bg-white text-black'>
                 <td>SN</td>
                   <td>{artist.name}</td>
                   <td>{artist.email}</td>

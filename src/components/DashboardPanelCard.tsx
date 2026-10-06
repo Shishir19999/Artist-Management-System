@@ -12,7 +12,7 @@ interface Props{
 
 export default function DashboardPanelCard({isLoading, title, counter,color, icon, href }: Props) {
   return (
-    <div className='flex justify-between border-2 border-slate-300 p-[30px] rounded-[15px] shadow-[0_8px_30px_rgb(0,0,0,0.12)]'>
+    <div className='flex justify-between border-2 p-[30px] rounded-[15px] shadow-[0_8px_30px_rgb(0,0,0,0.12)]'>
         <div className='flex flex-col'>
             <h4 className='text-[24px] font-bold text-black'>{title}</h4>
             {

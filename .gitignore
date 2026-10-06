@@ -34,4 +34,15 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+.envnode_modules/
 .env
+.env.*
+!.env.example
+!.env.docker.example
+!.env-example
+*.key
+.next/
+dist/
+build/
+coverage/
+*.log

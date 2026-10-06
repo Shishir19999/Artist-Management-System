@@ -1,18 +1,24 @@
 "use client"
 import { baseUrl } from '@/utils/baseURL';
 import axios from 'axios';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, use } from 'react';
 import { showError, showSucces } from "@/utils/notify"
 import { handleError } from '@/utils/errorsHandle';
 import { useRouter } from 'next/navigation';
 
 interface Props{
-    params: {
+    params: Promise<{
         user_id: string
-    }
+    }>
 }
 
-export default function EditUser({ params: { user_id} }: Props) {
+export default function EditUser(props: Props) {
+    const params = use(props.params);
+
+    const {
+        user_id
+    } = params;
+
     const router = useRouter();
 
     const [ formData, setFormData] = useState({
@@ -33,15 +39,15 @@ export default function EditUser({ params: { user_id} }: Props) {
         })
     }
 
-    const handleChange = (e:any) =>{
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>{
         setFormData({ ...formData, [e.target.name]: e.target.value})
     }
 
-    const editUser = (e:any) =>{
+    const editUser = (e: React.FormEvent) =>{
         e.preventDefault();
 
-        axios.put(`${baseUrl.local}users/${user_id}`, formData )
-        .then(res =>{
+        axios.put(`${baseUrl.local}/users/${user_id}`, formData )
+        .then(() =>{
             showSucces("User updated susccessfull!");
 
             router.push('/admin/user');
@@ -64,37 +70,37 @@ export default function EditUser({ params: { user_id} }: Props) {
         fetchUserById();
     },[])
 
-  return (
-    <div >
-        <h1 className='mb-[30px] pb-2 border-b-2 text-[30px] font-bold'>Edit User</h1>
-        <form onSubmit={editUser}>
-            <div className='grid grid-cols-2 gap-[30px]'>
-                <div className='col-span-1'>
-                    <label htmlFor="nameField">Name</label>
-                    <input type="text" name='name' onChange={handleChange} value={formData?.name} id='nameField' className='w-full py-3 px-5 border border-[#666]' placeholder='Enter Name' />
-                </div>
-                <div className='col-span-1'>
-                    <label htmlFor="emailField">Email</label>
-                    <input type="text" name='email' onChange={handleChange} value={formData?.email} id='emailField' className='w-full py-3 px-5 border border-[#666]' placeholder='Enter Email'/>
-                </div>
-                <div className='col-span-1'>
-                    <label htmlFor="passwordField">Password</label>
-                    <input type="text" name='password' onChange={handleChange} value={formData?.password} id='passwordField' className='w-full py-3 px-5 border border-[#666]' placeholder='Enter Name' />
-                </div>
-                <div className='col-span-1'>
-                    <label htmlFor="roleField">Role</label>
-                    <select name="role" id="roleField" onChange={handleChange} value={formData?.role} className='w-full py-3 px-5 border border-[#666]'>
-                        <option value="">Select Role</option>
-                        <option value="ADMIN">ADMIN</option>
-                        <option value="ARTIST_MANAGER">ARTIST_MANAGER</option>
-                        <option value="USER">USER</option>
-                    </select>
-                </div>
-                <div className='col-span-2'>
-                    <button type='submit' className='btn btn-success text-white'>Update User</button>
-                </div>
-            </div>
-        </form>
-    </div>
-  )
+    return (
+      <div >
+          <h1 className='mb-[30px] pb-2 border-b-2 text-[30px] font-bold'>Edit User</h1>
+          <form onSubmit={editUser}>
+              <div className='grid grid-cols-2 gap-[30px]'>
+                  <div className='col-span-1'>
+                      <label htmlFor="nameField">Name</label>
+                      <input type="text" name='name' onChange={handleChange} value={formData?.name} id='nameField' className='w-full py-3 px-5 border border-[#666]' placeholder='Enter Name' />
+                  </div>
+                  <div className='col-span-1'>
+                      <label htmlFor="emailField">Email</label>
+                      <input type="text" name='email' onChange={handleChange} value={formData?.email} id='emailField' className='w-full py-3 px-5 border border-[#666]' placeholder='Enter Email'/>
+                  </div>
+                  <div className='col-span-1'>
+                      <label htmlFor="passwordField">Password</label>
+                      <input type="text" name='password' onChange={handleChange} value={formData?.password} id='passwordField' className='w-full py-3 px-5 border border-[#666]' placeholder='Enter Name' />
+                  </div>
+                  <div className='col-span-1'>
+                      <label htmlFor="roleField">Role</label>
+                      <select name="role" id="roleField" onChange={handleChange} value={formData?.role} className='w-full py-3 px-5 border border-[#666]'>
+                          <option value="">Select Role</option>
+                          <option value="ADMIN">ADMIN</option>
+                          <option value="ARTIST_MANAGER">ARTIST_MANAGER</option>
+                          <option value="USER">USER</option>
+                      </select>
+                  </div>
+                  <div className='col-span-2'>
+                      <button type='submit' className='btn btn-success text-white'>Update User</button>
+                  </div>
+              </div>
+          </form>
+      </div>
+    )
 }

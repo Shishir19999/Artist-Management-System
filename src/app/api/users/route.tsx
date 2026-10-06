@@ -1,24 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { UserSchema} from "./UserSchema";
+import { UserSchema } from "./UserSchema";
 import prisma from "./../../../../prisma/PrismaClient";
 import bcrypt from 'bcrypt';
+import { authorize, badJson, readJson, stripPassword } from "@/lib/authz";
 
-enum Role{
-    USER = "USER",
-    ARTIST_MANAGER = "ARTIST_MANAGER",
-    ADMIN = "ADMIN"
-}
+// ADMIN only: list users
+export async function GET(){
+    const auth = await authorize(["ADMIN"]);
+    if (auth.error) return auth.error;
 
-interface User{
-    name: string,
-    email: string,
-    password: string,
-    role: Role,
-}
-
-export async function GET(request: NextRequest){
-
-    const allUsers = await prisma.user.findMany();
+    const rows = await prisma.user.findMany();
+    const allUsers = rows.map(stripPassword);
 
     return NextResponse.json(
         {  users: allUsers, total_count: allUsers.length },
@@ -26,23 +18,25 @@ export async function GET(request: NextRequest){
     );
 }
 
+// ADMIN only: create user (only ADMIN can assign a role)
 export async function POST(request: NextRequest){
-    const reqData: User = await request.json();
+    const auth = await authorize(["ADMIN"]);
+    if (auth.error) return auth.error;
 
-    // validation
+    const reqData = await readJson(request);
+    if (reqData === null) return badJson();
+
     const validation = UserSchema.safeParse(reqData);
     if(!validation.success){
         return NextResponse.json(
-            { error: validation.error.errors },
+            { error: validation.error.issues },
             { status: 400}
         )
     }
+    const data = validation.data;
 
-    // check existing email
     const isUserExist = await prisma.user.findUnique({
-        where: {
-            email: reqData.email
-        }
+        where: { email: data.email }
     });
 
     if(isUserExist){
@@ -52,21 +46,17 @@ export async function POST(request: NextRequest){
         )
     }
 
-    const hashPassord = bcrypt.hashSync(reqData.password,10)
-
-    // create user
     const newUser = await prisma.user.create({
         data: {
-            name: reqData.name,
-            email: reqData.email,
-            password: hashPassord,
-            role: reqData.role
+            name: data.name,
+            email: data.email,
+            password: await bcrypt.hash(data.password, 10),
+            role: data.role ?? "USER"
         }
     })
 
-    // reponse inserted data
     return NextResponse.json(
-        { data: newUser },
+        { data: stripPassword(newUser) },
         { status: 200}
     );
 }
