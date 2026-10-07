@@ -16,9 +16,7 @@ type AuthResult = { user: AuthUser; error?: undefined } | { user?: undefined; er
  * Authenticate the request and require one of `allowed` roles.
  * Revocation: the NextAuth jwt callback re-validates the token's tokenVersion against the DB on every
  * getServerSession call, so a logged-out / password-changed / role-changed token yields an empty user id here.
- * Revocation: the NextAuth jwt callback re-validates the token tokenVersion against the DB on every
- * getServerSession call, so a logged-out / password-changed / role-changed token yields an empty user id here.
- * Usage:  const auth = await authorize(["ADMIN"]); if (auth.error) return auth.error;
+ * Usage:  const auth = await authorize(["ARTIST_MANAGER"]); if (auth.error) return auth.error;
  */
 export async function authorize(allowed: readonly AppRole[]): Promise<AuthResult> {
     const session = await getServerSession(authOptions);
@@ -34,7 +32,7 @@ export async function authorize(allowed: readonly AppRole[]): Promise<AuthResult
     return { user: { id, role, email: session.user.email, name: session.user.name } };
 }
 
-export const canManage = (role: AppRole) => role === "ADMIN" || role === "ARTIST_MANAGER";
+export const canManage = (role: AppRole) => role === "ARTIST_MANAGER";
 
 /** Parse a JSON body, returning null on malformed input. */
 export async function readJson(request: Request): Promise<unknown | null> {

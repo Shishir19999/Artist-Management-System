@@ -5,19 +5,21 @@ import { LuListMusic, LuMic, LuMusic, LuSearch } from "react-icons/lu";
 import Modal from "@/components/ui/Modal";
 import { useArtists, usePlaylists, useSongs } from "@/lib/client/hooks";
 import { routes } from "@/lib/client/routes";
+import { canOpenPage } from "@/lib/client/role-policy";
 import { GENRE_LABEL } from "@/lib/domain/constants";
+import type { AppRole } from "@/lib/roles";
 
 interface Hit {
     key: string;
     label: string;
     sub: string;
     href: string;
-    kind: "Artist" | "Song" | "Playlist";
+    kind: "Artist" | "Music" | "Playlist";
 }
 
-const ICON = { Artist: LuMic, Song: LuMusic, Playlist: LuListMusic } as const;
+const ICON = { Artist: LuMic, Music: LuMusic, Playlist: LuListMusic } as const;
 
-function SearchBody({ onDone }: { onDone: () => void }) {
+function SearchBody({ onDone, role }: { onDone: () => void; role: AppRole }) {
     const router = useRouter();
     const listId = useId();
     const [q, setQ] = useState("");
@@ -33,7 +35,9 @@ function SearchBody({ onDone }: { onDone: () => void }) {
         const term = q.trim().toLowerCase();
         if (!term) return [];
         const out: Hit[] = [];
-        for (const a of artists) {
+        const withArtists = canOpenPage(role, routes.artistShow("x"));
+        const withPlaylists = canOpenPage(role, routes.playlists);
+        for (const a of withArtists ? artists : []) {
             if (`${a.name} ${a.email ?? ""} ${a.address ?? ""}`.toLowerCase().includes(term))
                 out.push({ key: `a${a.id}`, label: a.name, sub: a.address ?? "Artist", href: routes.artistShow(a.id), kind: "Artist" });
         }
@@ -42,17 +46,17 @@ function SearchBody({ onDone }: { onDone: () => void }) {
                 out.push({
                     key: `s${s.id}`,
                     label: s.title,
-                    sub: `${byId.get(s.artistId ?? "")?.name ?? "Unknown artist"} - ${GENRE_LABEL[s.genre]}`,
+                    sub: `${s.artistName ?? byId.get(s.artistId ?? "")?.name ?? "Unknown artist"} - ${GENRE_LABEL[s.genre]}`,
                     href: routes.musicShow(s.id),
-                    kind: "Song",
+                    kind: "Music",
                 });
         }
-        for (const p of playlists) {
+        for (const p of withPlaylists ? playlists : []) {
             if (p.name.toLowerCase().includes(term))
                 out.push({ key: `p${p.id}`, label: p.name, sub: `${p.songIds.length} songs`, href: routes.playlist(p.id), kind: "Playlist" });
         }
         return out.slice(0, 30);
-    }, [q, artists, songs, playlists, byId]);
+    }, [q, artists, songs, playlists, byId, role]);
 
     const go = (h: Hit) => {
         onDone();
@@ -63,7 +67,7 @@ function SearchBody({ onDone }: { onDone: () => void }) {
         <div>
             <label className="input w-full items-center gap-2">
                 <LuSearch aria-hidden className="opacity-60" />
-                <span className="sr-only">Search artists, songs and playlists</span>
+                <span className="sr-only">Search the workspace</span>
                 <input
                     ref={inputRef}
                     data-autofocus
@@ -74,7 +78,7 @@ function SearchBody({ onDone }: { onDone: () => void }) {
                     aria-autocomplete="list"
                     type="search"
                     value={q}
-                    placeholder="Search artists, songs, playlists"
+                    placeholder="Search music, artists, playlists"
                     className="grow"
                     onChange={(e) => {
                         setQ(e.target.value);
@@ -123,10 +127,10 @@ function SearchBody({ onDone }: { onDone: () => void }) {
     );
 }
 
-export default function SearchDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+export default function SearchDialog({ open, onClose, role }: { open: boolean; onClose: () => void; role: AppRole }) {
     return (
         <Modal open={open} onClose={onClose} title="Search">
-            {open && <SearchBody onDone={onClose} />}
+            {open && <SearchBody onDone={onClose} role={role} />}
         </Modal>
     );
 }

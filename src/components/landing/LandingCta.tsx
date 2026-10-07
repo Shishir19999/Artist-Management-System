@@ -12,11 +12,11 @@ export default function LandingCta({ variant = "hero" }: { variant?: "hero" | "n
 
     if (variant === "nav") {
         return signedIn ? (
-            <Link href={routes.dashboard} className="btn btn-primary btn-sm">
+            <Link href={routes.dashboard} className="btn btn-primary btn-sm min-h-11">
                 Open dashboard
             </Link>
         ) : (
-            <Link href={routes.login} className="btn btn-primary btn-sm">
+            <Link href={routes.login} className="btn btn-primary btn-sm min-h-11">
                 Sign in
             </Link>
         );
@@ -34,7 +34,7 @@ export default function LandingCta({ variant = "hero" }: { variant?: "hero" | "n
             ) : (
                 <>
                     <Link href={routes.login} className="btn btn-primary btn-lg gap-2">
-                        {IS_DEMO ? "Try the live demo" : "Sign in"} <LuArrowRight aria-hidden />
+                        {IS_DEMO ? "Open the live preview" : "Sign in"} <LuArrowRight aria-hidden />
                     </Link>
                     <Link href={routes.register} className="btn btn-outline btn-lg">
                         Create an account

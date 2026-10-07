@@ -15,20 +15,20 @@ beforeEach(() => getServerSession.mockReset());
 describe("authorize()", () => {
     it("401 without a session", async () => {
         getServerSession.mockResolvedValue(null);
-        expect((await authorize(["ADMIN"])).error?.status).toBe(401);
+        expect((await authorize(["ARTIST_MANAGER"])).error?.status).toBe(401);
     });
     it("401 for a revoked token (empty id) or unknown role", async () => {
-        session("ADMIN", "");
-        expect((await authorize(["ADMIN"])).error?.status).toBe(401);
+        session("ARTIST_MANAGER", "");
+        expect((await authorize(["ARTIST_MANAGER"])).error?.status).toBe(401);
         getServerSession.mockResolvedValue({ user: { id: "u1", role: "ROOT" } });
-        expect((await authorize(["ADMIN"])).error?.status).toBe(401);
+        expect((await authorize(["ARTIST_MANAGER"])).error?.status).toBe(401);
     });
 
     // role matrix: which roles may pass each allow-list
     const matrix: Array<[string, AppRole[]]> = [
-        ["admin only", ["ADMIN"]],
-        ["manager+admin", ["ADMIN", "ARTIST_MANAGER"]],
-        ["everyone", ["ADMIN", "ARTIST_MANAGER", "USER"]],
+        ["manager only", ["ARTIST_MANAGER"]],
+        ["artist+manager", ["ARTIST", "ARTIST_MANAGER"]],
+        ["everyone", ["USER", "ARTIST", "ARTIST_MANAGER"]],
     ];
     for (const [label, allowed] of matrix) {
         for (const role of ROLES) {

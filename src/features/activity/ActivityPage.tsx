@@ -10,14 +10,14 @@ import ActivityList from "./ActivityList";
 
 export default function ActivityPage() {
     const { user } = useAuth();
-    const isAdmin = user?.role === "ADMIN";
+    const isManager = user?.role === "ARTIST_MANAGER";
     const { activity, loading, error, reload } = useActivity({ limit: 200 });
     const [entity, setEntity] = useState("");
     const shown = useMemo(() => (entity ? activity.filter((a) => a.entity === entity) : activity), [activity, entity]);
 
     return (
         <>
-            <PageHeader title="Activity" subtitle={isAdmin ? "Audit trail of everything done in the workspace." : "Your recent actions."} />
+            <PageHeader title="Activity" subtitle={isManager ? "Audit trail of everything done in the workspace." : "Your recent actions."} />
             <div className="mb-4 max-w-xs">
                 <SelectField label="Filter by type" value={entity} onChange={(e) => setEntity(e.target.value)}>
                     <option value="">Everything</option>
@@ -36,7 +36,7 @@ export default function ActivityPage() {
                 ) : shown.length === 0 ? (
                     <EmptyState icon={<LuActivity size={26} />} title="Nothing here yet" message="Actions such as creating or editing records show up in this trail." />
                 ) : (
-                    <ActivityList items={shown} showUser={isAdmin} />
+                    <ActivityList items={shown} showUser={isManager} />
                 )}
             </div>
         </>

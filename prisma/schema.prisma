@@ -44,11 +44,15 @@ model User {
   password      String?
   image         String?
   gender        Gender     @default(MALE)
+  phone         String?
+  address       String?
+  birthDate     DateTime?  @map("birth_date") @db.Date
   role          Role       @default(USER)
   tokenVersion  Int        @default(0) @map("token_version")
   accounts      Account[]
   sessions      Session[]
-  artist        Artist[] // One-to-many relation with Artist
+  artist        Artist[]   @relation("ArtistCreator") // artists this user created
+  artistProfile Artist?    @relation("ArtistProfile") // the artist record of a user with role ARTIST
   playlists     Playlist[]
   favorites     Favorite[]
 
@@ -71,12 +75,14 @@ model Artist {
   youtube            String?
   spotify            String?
   createdBy          String?
+  userId             String?  @unique
   created_at         DateTime @default(now())
   updated_at         DateTime @updatedAt
 
-  user  User?   @relation(fields: [createdBy], references: [id])
-  music Music[]
-  gigs  Gig[]
+  user    User?   @relation("ArtistCreator", fields: [createdBy], references: [id])
+  account User?   @relation("ArtistProfile", fields: [userId], references: [id], onDelete: SetNull)
+  music   Music[]
+  gigs    Gig[]
 }
 
 model Music {
@@ -216,6 +222,6 @@ enum Gender {
 
 enum Role {
   USER
+  ARTIST
   ARTIST_MANAGER
-  ADMIN
 }

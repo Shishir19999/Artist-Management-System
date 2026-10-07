@@ -9,7 +9,6 @@ import {
   LuListMusic,
   LuMic,
   LuMusic,
-  LuShield,
   LuUsers,
 } from "react-icons/lu";
 import LandingCta from "@/components/landing/LandingCta";
@@ -25,13 +24,13 @@ const FEATURES: { icon: ReactNode; title: string; text: string }[] = [
   },
   {
     icon: <LuMusic aria-hidden />,
-    title: "Song catalogue",
+    title: "Music catalogue",
     text: "Track titles, albums, genres, durations, release dates and cover art, and hear a short preview with one click.",
   },
   {
     icon: <LuChartColumn aria-hidden />,
     title: "Analytics dashboard",
-    text: "Artists by genre, songs per release year, top artists and upcoming gigs, scoped to what each person may see.",
+    text: "A dashboard for each role with counts, small charts and what is coming up, showing only what that person may use.",
   },
   {
     icon: <LuCalendar aria-hidden />,
@@ -41,7 +40,7 @@ const FEATURES: { icon: ReactNode; title: string; text: string }[] = [
   {
     icon: <LuListMusic aria-hidden />,
     title: "Playlists and favorites",
-    text: "Group songs into ordered playlists and star the artists and tracks you come back to most.",
+    text: "Listeners star the tracks they love and group music into ordered playlists.",
   },
   {
     icon: <LuFileSpreadsheet aria-hidden />,
@@ -52,19 +51,19 @@ const FEATURES: { icon: ReactNode; title: string; text: string }[] = [
 
 const ROLES: { icon: ReactNode; name: string; text: string }[] = [
   {
-    icon: <LuShield aria-hidden />,
-    name: "Admin",
-    text: "Full control: users and roles, every artist and song, the complete audit trail.",
+    icon: <LuUsers aria-hidden />,
+    name: "Artist Manager",
+    text: "Runs the workspace: users and their roles, every artist and track, bookings and the activity trail.",
   },
   {
-    icon: <LuUsers aria-hidden />,
-    name: "Artist manager",
-    text: "Runs the roster: creates and edits artists, songs and gigs, imports data, curates playlists.",
+    icon: <LuMic aria-hidden />,
+    name: "Artist",
+    text: "Keeps their own profile and music up to date, plans gigs and can still browse everyone else's music.",
   },
   {
     icon: <LuHeadphones aria-hidden />,
     name: "User",
-    text: "Read-only access to their own artists and songs, plus personal playlists and favorites.",
+    text: "Listens: browses all music with previews, keeps favorites and builds playlists. Read-only.",
   },
 ];
 
@@ -119,7 +118,7 @@ export default function HomePage() {
             <Parallax speed={0.1} decorative className="relative">
               <div className="surface relative mx-auto max-w-md p-5 shadow-2xl" role="img" aria-label="Preview of the dashboard">
                 <div className="mb-4 flex items-center justify-between">
-                  <span className="text-sm font-semibold">Songs per release year</span>
+                  <span className="text-sm font-semibold">Tracks per release year</span>
                   <span className="badge badge-ghost badge-sm">Preview</span>
                 </div>
                 <div className="flex h-36 items-end gap-2">
@@ -130,7 +129,7 @@ export default function HomePage() {
                 <div className="mt-4 grid grid-cols-3 gap-3 text-center">
                   {[
                     ["25", "Artists"],
-                    ["120", "Songs"],
+                    ["120", "Tracks"],
                     ["8", "Gigs"],
                   ].map(([n, l]) => (
                     <div key={l} className="bg-base-200 rounded-xl py-2.5">

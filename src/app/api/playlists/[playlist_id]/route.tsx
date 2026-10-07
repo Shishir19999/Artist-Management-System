@@ -14,7 +14,7 @@ const notFound = () => NextResponse.json({ error: "Playlist not found!" }, { sta
 // Playlists of other users are reported as 404 (their existence is not disclosed), for every role.
 export async function GET(request: NextRequest, props: Ctx) {
     const { playlist_id } = await props.params;
-    const auth = await authorize(["ADMIN", "ARTIST_MANAGER", "USER"]);
+    const auth = await authorize(["USER", "ARTIST", "ARTIST_MANAGER"]);
     if (auth.error) return auth.error;
 
     const playlist = await prisma.playlist.findUnique({ where: { id: playlist_id }, include: itemsInclude });
@@ -24,7 +24,7 @@ export async function GET(request: NextRequest, props: Ctx) {
 
 export async function PUT(request: NextRequest, props: Ctx) {
     const { playlist_id } = await props.params;
-    const auth = await authorize(["ADMIN", "ARTIST_MANAGER", "USER"]);
+    const auth = await authorize(["USER", "ARTIST", "ARTIST_MANAGER"]);
     if (auth.error) return auth.error;
 
     const body = await readJson(request);
@@ -56,7 +56,7 @@ export async function PUT(request: NextRequest, props: Ctx) {
 
 export async function DELETE(request: NextRequest, props: Ctx) {
     const { playlist_id } = await props.params;
-    const auth = await authorize(["ADMIN", "ARTIST_MANAGER", "USER"]);
+    const auth = await authorize(["USER", "ARTIST", "ARTIST_MANAGER"]);
     if (auth.error) return auth.error;
 
     const playlist = await prisma.playlist.findUnique({ where: { id: playlist_id } });

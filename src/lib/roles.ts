@@ -1,5 +1,5 @@
 // Edge-safe (no prisma/bcrypt imports) so it can be used by the proxy too.
-export const ROLES = ["USER", "ARTIST_MANAGER", "ADMIN"] as const;
+export const ROLES = ["USER", "ARTIST", "ARTIST_MANAGER"] as const;
 export type AppRole = (typeof ROLES)[number];
 
 export function isRole(value: unknown): value is AppRole {

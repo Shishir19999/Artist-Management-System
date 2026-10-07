@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "../../../../../prisma/PrismaClient";
 import { ArtistSchema } from "../ArtistSchema";
 import bcrypt from 'bcrypt';
-import { authorize, badJson, canManage, readJson, stripPassword } from "@/lib/authz";
+import { authorize, badJson, readJson, stripPassword } from "@/lib/authz";
+import { publicArtist } from "@/lib/artist-profile";
 import { cleanOpt } from "@/lib/domain/schemas";
 import { logActivity } from "@/lib/activity";
 
@@ -10,7 +11,7 @@ type Ctx = { params: Promise<{ artist_id: string }> };
 
 export async function GET(request: NextRequest, props: Ctx) {
     const params = await props.params;
-    const auth = await authorize(["ADMIN", "ARTIST_MANAGER", "USER"]);
+    const auth = await authorize(["ARTIST", "ARTIST_MANAGER"]);
     if (auth.error) return auth.error;
 
     const artist = await prisma.artist.findUnique({
@@ -20,17 +21,19 @@ export async function GET(request: NextRequest, props: Ctx) {
         }
     });
 
-    // USER may only read artists they own; hide existence of others
-    if (!artist || (!canManage(auth.user.role) && artist.createdBy !== auth.user.id)) {
+    if (!artist) {
         return NextResponse.json({ error: "artist not found!" }, { status: 404 });
     }
 
-    return NextResponse.json({ artist: stripPassword(artist) }, { status: 200 });
+    const safe = stripPassword({ ...artist, music: artist.music.map((m) => ({ ...m, artistName: artist.name })) });
+    if (auth.user.role === "ARTIST_MANAGER") return NextResponse.json({ artist: safe }, { status: 200 });
+    const own = artist.userId === auth.user.id;
+    return NextResponse.json({ artist: own ? { ...safe, createdBy: auth.user.id } : publicArtist(safe) }, { status: 200 });
 }
 
 export async function PUT(request: NextRequest, props: Ctx) {
     const params = await props.params;
-    const auth = await authorize(["ADMIN", "ARTIST_MANAGER"]);
+    const auth = await authorize(["ARTIST", "ARTIST_MANAGER"]);
     if (auth.error) return auth.error;
 
     const reqData = await readJson(request);
@@ -39,6 +42,10 @@ export async function PUT(request: NextRequest, props: Ctx) {
     const artist = await prisma.artist.findUnique({ where: { id: params.artist_id } });
     if (!artist) {
         return NextResponse.json({ error: "artist Not Found!" }, { status: 404 });
+    }
+    // an ARTIST may only edit the artist record linked to their own account
+    if (auth.user.role === "ARTIST" && artist.userId !== auth.user.id) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const validation = ArtistSchema.safeParse(reqData);
@@ -80,7 +87,7 @@ export async function PUT(request: NextRequest, props: Ctx) {
 
 export async function DELETE(request: NextRequest, props: Ctx) {
     const params = await props.params;
-    const auth = await authorize(["ADMIN", "ARTIST_MANAGER"]);
+    const auth = await authorize(["ARTIST_MANAGER"]);
     if (auth.error) return auth.error;
 
     const artist = await prisma.artist.findUnique({ where: { id: params.artist_id } });

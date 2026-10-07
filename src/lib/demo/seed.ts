@@ -12,6 +12,9 @@ export interface DemoUser {
     role: AppRole;
     gender: GenderKey;
     image: string | null;
+    phone?: string | null;
+    address?: string | null;
+    birthDate?: string | null;
 }
 
 export interface DemoFavorite {
@@ -32,13 +35,13 @@ export interface DemoDb {
     counter: number;
 }
 
-export const DEMO_VERSION = 1;
+export const DEMO_VERSION = 2;
 export const DEMO_PASSWORD = "Demo@1234";
 
 export const DEMO_ACCOUNTS: { role: AppRole; label: string; email: string; password: string; blurb: string }[] = [
-    { role: "ADMIN", label: "Admin", email: "admin@example.com", password: DEMO_PASSWORD, blurb: "Everything, including users and roles" },
-    { role: "ARTIST_MANAGER", label: "Artist manager", email: "manager@example.com", password: DEMO_PASSWORD, blurb: "Artists, songs and gigs" },
-    { role: "USER", label: "User", email: "user@example.com", password: DEMO_PASSWORD, blurb: "Read-only view of own artists" },
+    { role: "ARTIST_MANAGER", label: "Artist Manager", email: "manager@example.com", password: DEMO_PASSWORD, blurb: "Users, artists, music and bookings" },
+    { role: "ARTIST", label: "Artist", email: "artist@example.com", password: DEMO_PASSWORD, blurb: "Own profile and own music" },
+    { role: "USER", label: "User", email: "user@example.com", password: DEMO_PASSWORD, blurb: "Browse music, favorites and playlists" },
 ];
 
 /** Small deterministic PRNG so every browser starts from the same catalogue. */
@@ -110,14 +113,17 @@ export function buildSeed(now: Date = new Date()): DemoDb {
     const r = rng(20260701);
     const stamp = iso(new Date(now.getTime() - 30 * 86400_000));
     const users: DemoUser[] = [
-        { id: "u_admin", name: "Alex Admin", email: "admin@example.com", password: DEMO_PASSWORD, role: "ADMIN", gender: "OTHER", image: null },
         { id: "u_manager", name: "Morgan Manager", email: "manager@example.com", password: DEMO_PASSWORD, role: "ARTIST_MANAGER", gender: "FEMALE", image: null },
+        { id: "u_artist", name: "Luna Marsh", email: "artist@example.com", password: DEMO_PASSWORD, role: "ARTIST", gender: "FEMALE", image: null },
+        { id: "u_artist_2", name: "Marcus Delacroix", email: "marcus@example.com", password: DEMO_PASSWORD, role: "ARTIST", gender: "MALE", image: null },
+        { id: "u_artist_3", name: "Aiko Tanabe", email: "aiko@example.com", password: DEMO_PASSWORD, role: "ARTIST", gender: "FEMALE", image: null },
         { id: "u_user", name: "Uma User", email: "user@example.com", password: DEMO_PASSWORD, role: "USER", gender: "FEMALE", image: null },
         { id: "u_sam", name: "Sam Rivera", email: "sam.rivera@example.com", password: DEMO_PASSWORD, role: "USER", gender: "MALE", image: null },
-        { id: "u_jo", name: "Jo Bennett", email: "jo.bennett@example.com", password: DEMO_PASSWORD, role: "ARTIST_MANAGER", gender: "MALE", image: null },
+        { id: "u_jo", name: "Jo Bennett", email: "jo.bennett@example.com", password: DEMO_PASSWORD, role: "USER", gender: "MALE", image: null },
     ];
 
-    const owners = ["u_manager", "u_admin", "u_jo", "u_user"];
+    // three artist accounts own their own artist record (Luna Marsh, Marcus Delacroix, Aiko Tanabe); the rest are managed
+    const ARTIST_OWNERS: Record<string, string> = { "Luna Marsh": "u_artist", "Marcus Delacroix": "u_artist_2", "Aiko Tanabe": "u_artist_3" };
     const artists: ArtistDTO[] = ARTIST_NAMES.map(([name, , gender, address], i) => {
         const first = 1998 + Math.floor(r() * 22);
         const handle = name.toLowerCase().replace(/[^a-z0-9]+/g, "");
@@ -135,8 +141,7 @@ export function buildSeed(now: Date = new Date()): DemoDb {
             instagram: `@${handle.slice(0, 18)}`,
             youtube: i % 3 === 0 ? `https://youtube.com/@${handle}` : null,
             spotify: i % 2 === 0 ? `https://open.spotify.com/artist/${handle}` : null,
-            // the demo USER owns a handful of artists; the rest belong to managers
-            createdBy: i < 6 ? "u_user" : owners[i % 3],
+            createdBy: ARTIST_OWNERS[name] ?? "u_manager",
             created_at: stamp,
             updated_at: stamp,
         };
@@ -203,27 +208,25 @@ export function buildSeed(now: Date = new Date()): DemoDb {
     const playlists: PlaylistDTO[] = [
         { id: "p_1", name: "Road trip", description: "Long drive favourites", ownerId: "u_user", songIds: songs.slice(0, 12).map((s) => s.id), created_at: stamp, updated_at: stamp },
         { id: "p_2", name: "Focus", description: "Calm and instrumental", ownerId: "u_user", songIds: songs.filter((s) => s.genre === "CLASSIC" || s.genre === "JAZZ").slice(0, 10).map((s) => s.id), created_at: stamp, updated_at: stamp },
-        { id: "p_3", name: "Showcase picks", description: "Candidates for the spring showcase", ownerId: "u_manager", songIds: songs.slice(30, 44).map((s) => s.id), created_at: stamp, updated_at: stamp },
-        { id: "p_4", name: "Admin mix", description: null, ownerId: "u_admin", songIds: songs.slice(60, 70).map((s) => s.id), created_at: stamp, updated_at: stamp },
+        { id: "p_3", name: "Showcase picks", description: "Candidates for the spring showcase", ownerId: "u_artist", songIds: songs.slice(30, 44).map((s) => s.id), created_at: stamp, updated_at: stamp },
     ];
 
     const favorites: DemoFavorite[] = [
-        { userId: "u_user", targetType: "ARTIST", targetId: "a_1" },
         { userId: "u_user", targetType: "SONG", targetId: songs[2].id },
         { userId: "u_user", targetType: "SONG", targetId: songs[7].id },
-        { userId: "u_manager", targetType: "ARTIST", targetId: "a_3" },
-        { userId: "u_admin", targetType: "ARTIST", targetId: "a_4" },
+        { userId: "u_user", targetType: "SONG", targetId: songs[15].id },
+        { userId: "u_sam", targetType: "SONG", targetId: songs[4].id },
     ];
 
     const activity: ActivityDTO[] = [];
     const seedActs: [string, string, ActivityDTO["action"], ActivityDTO["entity"], string][] = [
         ["u_manager", "Morgan Manager", "CREATE", "ARTIST", "Created artist Hollow Pines"],
         ["u_manager", "Morgan Manager", "CREATE", "SONG", "Created song Midnight Hearts"],
-        ["u_admin", "Alex Admin", "UPDATE", "USER", "Updated user Jo Bennett"],
+        ["u_manager", "Morgan Manager", "UPDATE", "USER", "Updated user Jo Bennett"],
         ["u_manager", "Morgan Manager", "CREATE", "GIG", "Created gig Summer Session for Luna Marsh"],
         ["u_user", "Uma User", "CREATE", "PLAYLIST", "Created playlist Road trip"],
-        ["u_admin", "Alex Admin", "UPDATE", "ARTIST", "Updated artist Viktor Hale"],
-        ["u_jo", "Jo Bennett", "CREATE", "SONG", "Created song Golden Rivers"],
+        ["u_manager", "Morgan Manager", "UPDATE", "ARTIST", "Updated artist Viktor Hale"],
+        ["u_artist", "Luna Marsh", "CREATE", "SONG", "Created song Golden Rivers"],
         ["u_user", "Uma User", "LOGIN", "SESSION", "Signed in"],
     ];
     seedActs.forEach(([userId, userName, action, entity, summary], i) => {

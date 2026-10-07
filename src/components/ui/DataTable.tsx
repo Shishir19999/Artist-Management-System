@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { LuArrowDown, LuArrowUp, LuArrowUpDown, LuChevronLeft, LuChevronRight, LuColumns3, LuDownload, LuSearch, LuX } from "react-icons/lu";
+import { useDetailsDismiss } from "@/lib/client/use-dismiss";
 import { toCsv } from "@/lib/domain/csv";
 import { EmptyState, ErrorState, SkeletonRows } from "./States";
 
@@ -100,14 +101,7 @@ export default function DataTable<T>({
     );
     const colMenu = useRef<HTMLDetailsElement>(null);
 
-    useEffect(() => {
-        const close = (e: PointerEvent) => {
-            const d = colMenu.current;
-            if (d?.open && !d.contains(e.target as Node)) d.open = false;
-        };
-        document.addEventListener("pointerdown", close);
-        return () => document.removeEventListener("pointerdown", close);
-    }, []);
+    useDetailsDismiss(colMenu);
 
     const visibleColumns = columns.filter((c) => !hidden.has(c.key));
 
@@ -229,7 +223,7 @@ export default function DataTable<T>({
                 <div className="ml-auto flex flex-wrap items-center gap-2">
                     {toolbar}
                     <details ref={colMenu} className="dropdown dropdown-end">
-                        <summary className="btn btn-sm btn-ghost gap-1.5" aria-label="Choose visible columns">
+                        <summary className="btn btn-sm btn-ghost gap-1.5" aria-label="Choose visible columns" aria-haspopup="true">
                             <LuColumns3 aria-hidden /> <span className="hidden sm:inline">Columns</span>
                         </summary>
                         <ul className="dropdown-content bg-base-100 border-base-300 z-20 mt-1 w-56 rounded-xl border p-2 shadow-lg">

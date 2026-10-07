@@ -29,7 +29,7 @@ export const ACTIVITY_ENTITIES = ["ARTIST", "SONG", "USER", "GIG", "PLAYLIST", "
 export type ActivityEntity = (typeof ACTIVITY_ENTITIES)[number];
 
 export const ROLE_LABEL: Record<AppRole, string> = {
-    ADMIN: "Admin",
-    ARTIST_MANAGER: "Artist manager",
+    ARTIST_MANAGER: "Artist Manager",
+    ARTIST: "Artist",
     USER: "User",
 };

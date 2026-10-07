@@ -21,9 +21,15 @@ describe("demo seed", () => {
     it("has a realistic catalogue and one account per role", () => {
         expect(db.artists.length).toBeGreaterThanOrEqual(25);
         expect(db.songs.length).toBeGreaterThanOrEqual(110);
-        expect(new Set(db.users.map((u) => u.role))).toEqual(new Set(["ADMIN", "ARTIST_MANAGER", "USER"]));
+        expect(new Set(db.users.map((u) => u.role))).toEqual(new Set(["ARTIST_MANAGER", "ARTIST", "USER"]));
+        expect(db.users.filter((u) => u.role === "ARTIST_MANAGER")).toHaveLength(1);
+        expect(db.users.filter((u) => u.role === "ARTIST").length).toBeGreaterThan(1);
+        expect(db.users.filter((u) => u.role === "USER").length).toBeGreaterThan(1);
         expect(new Set(db.songs.map((s) => s.id)).size).toBe(db.songs.length);
         for (const s of db.songs) expect(db.artists.some((a) => a.id === s.artistId)).toBe(true);
+    });
+    it("links every Artist account to an artist profile of their own", () => {
+        for (const u of db.users.filter((x) => x.role === "ARTIST")) expect(db.artists.some((a) => a.createdBy === u.id)).toBe(true);
     });
     it("is deterministic apart from dates", () => {
         const again = buildSeed(new Date("2026-06-15T12:00:00Z"));
@@ -31,79 +37,145 @@ describe("demo seed", () => {
     });
 });
 
+const ownSong = () => db.songs.find((s) => s.artistId === "a_1")!;
+const otherSong = () => db.songs.find((s) => s.artistId !== "a_1")!;
+const songBody = (artistId: string) => ({ title: "T", album: "A", genre: "POP", durationSec: 200, releaseDate: "2024-01-02", artistId });
+
 describe("demo API authorization", () => {
     it("rejects anonymous requests", () => {
         expect(call(null, "GET", "/api/artists").status).toBe(401);
     });
-    it("USER sees only own artists and cannot write", () => {
-        const list = call("u_user", "GET", "/api/artists").data as { artists: { createdBy: string }[] };
-        expect(list.artists.length).toBeGreaterThan(0);
-        expect(list.artists.every((a) => a.createdBy === "u_user")).toBe(true);
-        expect(call("u_user", "POST", "/api/artists", artistBody).status).toBe(403);
+    it("USER browses all music read-only; no artist directory, no bookings, no user management", () => {
+        const music = call("u_user", "GET", "/api/musics").data as { musics: { artistName: string | null }[] };
+        expect(music.musics.length).toBe(db.songs.length);
+        expect(music.musics[0].artistName).toBeTruthy(); // listeners get the artist name with each track
+        expect(call("u_user", "GET", "/api/artists").status).toBe(403);
+        expect(call("u_user", "POST", "/api/musics", songBody("a_1")).status).toBe(403);
+        expect(call("u_user", "DELETE", "/api/musics/s_1").status).toBe(403);
         expect(call("u_user", "GET", "/api/users").status).toBe(403);
-        const foreign = db.artists.find((a) => a.createdBy !== "u_user")!;
-        expect(call("u_user", "GET", `/api/artists/${foreign.id}`).status).toBe(404);
+        expect(call("u_user", "GET", "/api/gigs").status).toBe(403);
+        expect(call("u_user", "GET", "/api/activity").status).toBe(403);
+        expect(call("u_user", "POST", "/api/favorites", { targetType: "SONG", targetId: "s_1" }).status).toBe(200);
+        expect(call("u_user", "GET", "/api/playlists").status).toBe(200);
     });
-    it("ARTIST_MANAGER manages artists but not users", () => {
+    it("ARTIST edits only their own profile and music, and reads the rest", () => {
+        expect(call("u_artist", "GET", "/api/musics").status).toBe(200);
+        expect(call("u_artist", "GET", "/api/artists").status).toBe(200);
+        expect(call("u_artist", "PUT", "/api/artists/a_1", { ...artistBody, name: "Luna Marsh" }).status).toBe(200);
+        expect(call("u_artist", "PUT", "/api/artists/a_2", artistBody).status).toBe(403);
+        expect(call("u_artist", "POST", "/api/artists", artistBody).status).toBe(403);
+        expect(call("u_artist", "DELETE", "/api/artists/a_1").status).toBe(403);
+        expect(call("u_artist", "POST", "/api/musics", songBody("a_1")).status).toBe(200);
+        expect(call("u_artist", "POST", "/api/musics", songBody("a_2")).status).toBe(403);
+        expect(call("u_artist", "PUT", `/api/musics/${ownSong().id}`, songBody("a_1")).status).toBe(200);
+        expect(call("u_artist", "PUT", `/api/musics/${otherSong().id}`, songBody("a_1")).status).toBe(403);
+        expect(call("u_artist", "DELETE", `/api/musics/${otherSong().id}`).status).toBe(403);
+        expect(call("u_artist", "DELETE", `/api/musics/${ownSong().id}`).status).toBe(200);
+        expect(call("u_artist", "GET", "/api/users").status).toBe(403);
+        expect(call("u_artist", "GET", "/api/favorites").status).toBe(200);
+        expect(call("u_artist", "GET", "/api/playlists").status).toBe(200);
+    });
+    it("ARTIST sees only their own gigs, read-only", () => {
+        const list = (call("u_artist", "GET", "/api/gigs").data as { gigs: { artistId: string }[] }).gigs;
+        expect(list.length).toBeGreaterThan(0);
+        expect(list.every((g) => g.artistId === "a_1")).toBe(true);
+        const gig = { artistId: "a_1", title: "Set", venue: "Hall", date: "2026-08-01T19:00:00.000Z", status: "HOLD" };
+        expect(call("u_artist", "POST", "/api/gigs", gig).status).toBe(403);
+        const own = db.gigs.find((g) => g.artistId === "a_1")!;
+        expect(call("u_artist", "PUT", `/api/gigs/${own.id}`, { ...gig, title: "Changed" }).status).toBe(403);
+        expect(call("u_artist", "DELETE", `/api/gigs/${own.id}`).status).toBe(403);
+    });
+    it("ARTIST_MANAGER manages users, artists, music and gigs", () => {
         expect(call("u_manager", "POST", "/api/artists", artistBody).status).toBe(200);
-        expect(call("u_manager", "GET", "/api/users").status).toBe(403);
+        expect(call("u_manager", "GET", "/api/users").status).toBe(200);
+        expect(call("u_manager", "POST", "/api/musics", songBody("a_2")).status).toBe(200);
+        expect(call("u_manager", "GET", "/api/gigs").status).toBe(200);
+        const gig = { artistId: "a_2", title: "Set", venue: "Hall", date: "2026-08-01T19:00:00.000Z", status: "HOLD" };
+        expect(call("u_manager", "POST", "/api/gigs", gig).status).toBe(201);
     });
-    it("ADMIN manages users, and cannot demote or delete themselves", () => {
-        expect(call("u_admin", "GET", "/api/users").status).toBe(200);
-        expect(call("u_admin", "PUT", "/api/users/u_admin", { name: "Alex Admin", email: "admin@example.com", role: "USER" }).status).toBe(400);
-        expect(call("u_admin", "DELETE", "/api/users/u_admin").status).toBe(400);
+    it("ARTIST_MANAGER can assign any role, but not change or delete themselves", () => {
+        expect(call("u_manager", "PUT", "/api/users/u_user", { name: "Uma User", email: "user@example.com", role: "ARTIST" }).status).toBe(200);
+        expect(db.artists.some((a) => a.createdBy === "u_user")).toBe(true);
+        expect(call("u_manager", "PUT", "/api/users/u_manager", { name: "Morgan Manager", email: "manager@example.com", role: "USER" }).status).toBe(400);
+        expect(call("u_manager", "DELETE", "/api/users/u_manager").status).toBe(400);
+    });
+    it("keeps user records to the Artist Manager; everyone else uses /api/me", () => {
+        expect(call("u_user", "GET", "/api/users/u_user").status).toBe(403);
+        expect(call("u_artist", "GET", "/api/users/u_artist").status).toBe(403);
+        expect(call("u_artist", "PUT", "/api/users/u_artist", { name: "x", email: "a@example.com" }).status).toBe(403);
+        expect(call("u_user", "GET", "/api/me").status).toBe(200);
+    });
+    it("every role edits its own profile fields through /api/me, never the role or email", () => {
+        for (const id of ["u_manager", "u_artist", "u_user"]) {
+            const before = db.users.find((u) => u.id === id)!;
+            const email = before.email;
+            const role = before.role;
+            const res = call(id, "PUT", "/api/me", { name: "New Name", phone: "+1 555 0100", address: "Oslo", birthDate: "1990-02-03", gender: "FEMALE", role: "ARTIST_MANAGER", email: "x@example.com" });
+            expect(res.status, id).toBe(200);
+            expect(db.users.find((u) => u.id === id)).toMatchObject({ name: "New Name", phone: "+1 555 0100", address: "Oslo", birthDate: "1990-02-03", gender: "FEMALE", email, role });
+        }
     });
 });
 
 describe("demo API behaviour", () => {
     it("validates, creates, edits and deletes artists with an audit trail", () => {
-        expect(call("u_admin", "POST", "/api/artists", { name: "" }).status).toBe(400);
-        const created = call("u_admin", "POST", "/api/artists", artistBody);
+        expect(call("u_manager", "POST", "/api/artists", { name: "" }).status).toBe(400);
+        const created = call("u_manager", "POST", "/api/artists", artistBody);
         const id = (created.data as { newArtist: { id: string } }).newArtist.id;
-        expect(call("u_admin", "PUT", `/api/artists/${id}`, { ...artistBody, name: "Renamed" }).status).toBe(200);
-        expect(call("u_admin", "DELETE", `/api/artists/${id}`).status).toBe(200);
-        expect(call("u_admin", "GET", `/api/artists/${id}`).status).toBe(404);
-        const log = (call("u_admin", "GET", "/api/activity?limit=3").data as { activity: { summary: string }[] }).activity;
+        expect(call("u_manager", "PUT", `/api/artists/${id}`, { ...artistBody, name: "Renamed" }).status).toBe(200);
+        expect(call("u_manager", "DELETE", `/api/artists/${id}`).status).toBe(200);
+        expect(call("u_manager", "GET", `/api/artists/${id}`).status).toBe(404);
+        const log = (call("u_manager", "GET", "/api/activity?limit=3").data as { activity: { summary: string }[] }).activity;
         expect(log.map((l) => l.summary)).toContain("Deleted artist Renamed");
     });
     it("unlinks songs and drops gigs and favorites when an artist is deleted", () => {
         const artist = db.artists[0];
         const songCount = db.songs.filter((s) => s.artistId === artist.id).length;
         expect(songCount).toBeGreaterThan(0);
-        call("u_admin", "DELETE", `/api/artists/${artist.id}`);
+        call("u_manager", "DELETE", `/api/artists/${artist.id}`);
         expect(db.songs.filter((s) => s.artistId === artist.id)).toHaveLength(0);
         expect(db.gigs.some((g) => g.artistId === artist.id)).toBe(false);
         expect(db.songs.length).toBeGreaterThan(100);
     });
     it("creates songs for existing artists only", () => {
-        const base = { title: "T", album: "A", genre: "POP", durationSec: 200, releaseDate: "2024-01-02" };
-        expect(call("u_manager", "POST", "/api/musics", { ...base, artistId: "nope" }).status).toBe(400);
-        expect(call("u_manager", "POST", "/api/musics", { ...base, artistId: "a_1" }).status).toBe(200);
-        expect(call("u_manager", "POST", "/api/musics", { ...base, artistId: "a_1", genre: "NOPE" }).status).toBe(400);
+        expect(call("u_manager", "POST", "/api/musics", songBody("nope")).status).toBe(400);
+        expect(call("u_manager", "POST", "/api/musics", songBody("a_1")).status).toBe(200);
+        expect(call("u_manager", "POST", "/api/musics", { ...songBody("a_1"), genre: "NOPE" }).status).toBe(400);
     });
-    it("toggles favorites per user", () => {
-        expect((call("u_manager", "POST", "/api/favorites", { targetType: "ARTIST", targetId: "a_2" }).data as { favorited: boolean }).favorited).toBe(true);
-        expect((call("u_manager", "POST", "/api/favorites", { targetType: "ARTIST", targetId: "a_2" }).data as { favorited: boolean }).favorited).toBe(false);
-        // the user cannot favorite an artist they cannot see
-        expect(call("u_user", "POST", "/api/favorites", { targetType: "ARTIST", targetId: db.artists.find((a) => a.createdBy !== "u_user")!.id }).status).toBe(404);
+    it("toggles favorites per listener", () => {
+        const fav = { targetType: "SONG", targetId: "s_9" };
+        expect((call("u_user", "POST", "/api/favorites", fav).data as { favorited: boolean }).favorited).toBe(true);
+        expect((call("u_user", "POST", "/api/favorites", fav).data as { favorited: boolean }).favorited).toBe(false);
+        expect(call("u_user", "POST", "/api/favorites", { targetType: "SONG", targetId: "nope" }).status).toBe(404);
     });
     it("keeps playlists private to their owner", () => {
         const own = call("u_user", "GET", "/api/playlists/p_1");
         expect(own.status).toBe(200);
-        expect(call("u_manager", "GET", "/api/playlists/p_1").status).toBe(404);
-        expect(call("u_manager", "DELETE", "/api/playlists/p_1").status).toBe(404);
+        expect(call("u_artist", "GET", "/api/playlists/p_1").status).toBe(404);
+        expect(call("u_artist", "DELETE", "/api/playlists/p_1").status).toBe(404);
+        expect(call("u_manager", "GET", "/api/playlists").status).toBe(200);
     });
-    it("registers new users as USER only, and rejects duplicates", () => {
-        const body = { name: "Pat Doe", email: "pat@example.com", password: "longenough1", role: "ADMIN" };
-        expect(call(null, "POST", "/api/auth/register", body).status).toBe(201);
+    const reg = { name: "Pat Doe", email: "pat@example.com", password: "longenough1" };
+    it("registers a User, never an Artist Manager, and rejects duplicates", () => {
+        expect(call(null, "POST", "/api/auth/register", { ...reg, role: "ARTIST_MANAGER" }).status).toBe(400);
+        expect(call(null, "POST", "/api/auth/register", reg).status).toBe(201);
         expect(db.users.find((u) => u.email === "pat@example.com")?.role).toBe("USER");
-        expect(call(null, "POST", "/api/auth/register", body).status).toBe(400);
-        expect(call(null, "POST", "/api/auth/register", { ...body, email: "x@example.com", password: "short" }).status).toBe(400);
+        expect(call(null, "POST", "/api/auth/register", reg).status).toBe(400);
+        expect(call(null, "POST", "/api/auth/register", { ...reg, email: "x@example.com", password: "short" }).status).toBe(400);
     });
-    it("limits non-admin activity to their own entries", () => {
-        const rows = (call("u_user", "GET", "/api/activity").data as { activity: { userId: string }[] }).activity;
-        expect(rows.every((r) => r.userId === "u_user")).toBe(true);
-        expect(call("u_user", "GET", "/api/activity?userId=u_admin").status).toBe(403);
+    it("registers an Artist with extra details and an empty artist profile", () => {
+        const res = call(null, "POST", "/api/auth/register", { ...reg, role: "ARTIST", phone: "+1 555 0100", address: "Oslo", gender: "FEMALE", birthDate: "1995-04-02" });
+        expect(res.status).toBe(201);
+        const user = db.users.find((u) => u.email === "pat@example.com")!;
+        expect(user).toMatchObject({ role: "ARTIST", phone: "+1 555 0100", address: "Oslo", gender: "FEMALE", birthDate: "1995-04-02" });
+        const profile = db.artists.find((a) => a.createdBy === user.id)!;
+        expect(profile.name).toBe("Pat Doe");
+        expect(profile.bio).toBeNull();
+    });
+    it("keeps the activity trail to the Artist Manager", () => {
+        expect(call("u_manager", "GET", "/api/activity").status).toBe(200);
+        expect(call("u_user", "GET", "/api/activity").status).toBe(403);
+        expect(call("u_artist", "GET", "/api/activity").status).toBe(403);
     });
     it("requires the current password to change it", () => {
         expect(call("u_user", "PUT", "/api/me", { name: "Uma User", newPassword: "newpassword1" }).status).toBe(400);

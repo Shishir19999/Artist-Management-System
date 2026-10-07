@@ -7,7 +7,7 @@ export const UserSchema = z.object({
     name: z.string({ error: required("Name is requied!") }).min(3, "Minimum 3 characters is requird"),
     email: z.string({ error: required("Email is requied!") }).email("Invalid Email Type!"),
     password: z.string({ error: required("Password is requied!") }).min(3, "Minimum 3 characters is requird"),
-    role: z.enum(["USER", "ARTIST_MANAGER", "ADMIN"]).optional()
+    role: z.enum(["USER", "ARTIST", "ARTIST_MANAGER"]).optional()
 })
 
 // On update the password is optional (omit to keep the current one)

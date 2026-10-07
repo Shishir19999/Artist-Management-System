@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "../../../../prisma/PrismaClient";
-import { authorize, badJson, canManage, readJson } from "@/lib/authz";
+import { authorize, badJson, readJson } from "@/lib/authz";
 import { FavoriteSchema } from "@/lib/domain/schemas";
 
 export async function GET() {
-    const auth = await authorize(["ADMIN", "ARTIST_MANAGER", "USER"]);
+    const auth = await authorize(["USER", "ARTIST", "ARTIST_MANAGER"]);
     if (auth.error) return auth.error;
 
     const rows = await prisma.favorite.findMany({ where: { userId: auth.user.id }, orderBy: { created_at: "asc" } });
@@ -16,7 +16,7 @@ export async function GET() {
 
 // Toggle: adds the favorite when missing, removes it when present.
 export async function POST(request: NextRequest) {
-    const auth = await authorize(["ADMIN", "ARTIST_MANAGER", "USER"]);
+    const auth = await authorize(["USER", "ARTIST", "ARTIST_MANAGER"]);
     if (auth.error) return auth.error;
 
     const body = await readJson(request);
@@ -26,14 +26,12 @@ export async function POST(request: NextRequest) {
     if (!parsed.success) return NextResponse.json({ error: parsed.error.issues }, { status: 400 });
     const { targetType, targetId } = parsed.data;
 
-    const manage = canManage(auth.user.role);
+    // USER cannot access artists at all, so only songs can be favorited by that role
+    if (targetType === "ARTIST" && auth.user.role === "USER") return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     const visible =
         targetType === "ARTIST"
-            ? await prisma.artist.findFirst({ where: { id: targetId, ...(manage ? {} : { createdBy: auth.user.id }) }, select: { id: true } })
-            : await prisma.music.findFirst({
-                  where: { id: targetId, ...(manage ? {} : { artist: { createdBy: auth.user.id } }) },
-                  select: { id: true },
-              });
+            ? await prisma.artist.findFirst({ where: { id: targetId }, select: { id: true } })
+            : await prisma.music.findFirst({ where: { id: targetId }, select: { id: true } });
     if (!visible) return NextResponse.json({ error: "Not found!" }, { status: 404 });
 
     const key = { userId: auth.user.id, targetType, targetId };

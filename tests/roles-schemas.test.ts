@@ -14,15 +14,27 @@ const env = (o: Record<string, string>) => o as unknown as NodeJS.ProcessEnv;
 describe("roles", () => {
     it("accepts only known roles", () => {
         for (const r of ROLES) expect(isRole(r)).toBe(true);
-        for (const bad of ["admin", "SUPERADMIN", "", null, undefined, 1]) expect(isRole(bad)).toBe(false);
+        for (const bad of ["admin", "ADMIN", "SUPERADMIN", "", null, undefined, 1]) expect(isRole(bad)).toBe(false);
     });
 });
 
 describe("RegisterSchema", () => {
     const ok = { name: "Jane", email: "  Jane@Example.COM ", password: "longenough" };
-    it("normalises email and strips unknown keys such as role", () => {
-        const r = RegisterSchema.parse({ ...ok, role: "ADMIN" });
-        expect(r).toEqual({ name: "Jane", email: "jane@example.com", password: "longenough" });
+    it("normalises email, strips unknown keys and defaults the role to USER", () => {
+        const r = RegisterSchema.parse({ ...ok, isAdmin: true });
+        expect(r).toEqual({ name: "Jane", email: "jane@example.com", password: "longenough", role: "USER" });
+    });
+    it("accepts USER or ARTIST and never ARTIST_MANAGER (or the old ADMIN)", () => {
+        expect(RegisterSchema.parse({ ...ok, role: "ARTIST" }).role).toBe("ARTIST");
+        expect(RegisterSchema.parse({ ...ok, role: "" }).role).toBe("USER");
+        for (const bad of ["ARTIST_MANAGER", "ADMIN", "root"]) expect(RegisterSchema.safeParse({ ...ok, role: bad }).success).toBe(false);
+    });
+    it("keeps the optional registration fields (phone, address, gender, birthDate) and validates them", () => {
+        const r = RegisterSchema.parse({ ...ok, phone: "+977 98", address: "Kathmandu", gender: "FEMALE", birthDate: "1999-05-17" });
+        expect(r).toMatchObject({ phone: "+977 98", address: "Kathmandu", gender: "FEMALE", birthDate: "1999-05-17" });
+        expect(RegisterSchema.safeParse({ ...ok, birthDate: "17/05/1999" }).success).toBe(false);
+        expect(RegisterSchema.safeParse({ ...ok, birthDate: "2999-01-01" }).success).toBe(false);
+        expect(RegisterSchema.safeParse({ ...ok, gender: "X" }).success).toBe(false);
     });
     it("rejects short password, bad email, short name, >72 char password", () => {
         expect(RegisterSchema.safeParse({ ...ok, password: "short" }).success).toBe(false);
@@ -35,7 +47,9 @@ describe("RegisterSchema", () => {
 
 describe("UserSchema", () => {
     it("validates role enum and makes password optional on update", () => {
-        expect(UserSchema.safeParse({ name: "Bob", email: "b@x.io", password: "abc", role: "ADMIN" }).success).toBe(true);
+        expect(UserSchema.safeParse({ name: "Bob", email: "b@x.io", password: "abc", role: "ARTIST_MANAGER" }).success).toBe(true);
+        expect(UserSchema.safeParse({ name: "Bob", email: "b@x.io", password: "abc", role: "ARTIST" }).success).toBe(true);
+        expect(UserSchema.safeParse({ name: "Bob", email: "b@x.io", password: "abc", role: "ADMIN" }).success).toBe(false);
         expect(UserSchema.safeParse({ name: "Bob", email: "b@x.io", password: "abc", role: "ROOT" }).success).toBe(false);
         expect(UserSchema.safeParse({ name: "Bob", email: "b@x.io" }).success).toBe(false);
         expect(UserUpdateSchema.safeParse({ name: "Bob", email: "b@x.io" }).success).toBe(true);

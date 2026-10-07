@@ -4,10 +4,11 @@ import prisma from "./../../../../prisma/PrismaClient";
 import bcrypt from 'bcrypt';
 import { authorize, badJson, readJson, stripPassword } from "@/lib/authz";
 import { logActivity } from "@/lib/activity";
+import { ensureArtistProfile } from "@/lib/artist-profile";
 
-// ADMIN only: list users
+// ARTIST_MANAGER only: list users
 export async function GET(){
-    const auth = await authorize(["ADMIN"]);
+    const auth = await authorize(["ARTIST_MANAGER"]);
     if (auth.error) return auth.error;
 
     const rows = await prisma.user.findMany();
@@ -19,9 +20,9 @@ export async function GET(){
     );
 }
 
-// ADMIN only: create user (only ADMIN can assign a role)
+// ARTIST_MANAGER only: create user (only ARTIST_MANAGER can assign a role)
 export async function POST(request: NextRequest){
-    const auth = await authorize(["ADMIN"]);
+    const auth = await authorize(["ARTIST_MANAGER"]);
     if (auth.error) return auth.error;
 
     const reqData = await readJson(request);
@@ -55,6 +56,8 @@ export async function POST(request: NextRequest){
             role: data.role ?? "USER"
         }
     })
+
+    if (newUser.role === "ARTIST") await ensureArtistProfile(newUser);
 
     await logActivity(auth.user, "CREATE", "USER", newUser.id, `Created user ${newUser.name ?? newUser.email}`);
 

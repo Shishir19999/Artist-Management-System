@@ -13,7 +13,8 @@ import { EmptyState, PageHeader } from "@/components/ui/States";
 import GigDialog, { STATUS_BADGE, STATUS_LABEL } from "@/features/calendar/GigDialog";
 import { useAuth } from "@/lib/client/auth";
 import { formatDate, formatDateTime, formatDuration, formatMoney, formatTotalDuration } from "@/lib/client/format";
-import { useSongs } from "@/lib/client/hooks";
+import { useOwnArtistId, useSongs } from "@/lib/client/hooks";
+import { canEditArtist } from "@/lib/client/role-policy";
 import { routes } from "@/lib/client/routes";
 import { invalidate, useApi } from "@/lib/client/use-api";
 import { GENRE_LABEL } from "@/lib/domain/constants";
@@ -32,10 +33,12 @@ function SocialLink({ href, icon, label }: { href: string; icon: ReactNode; labe
 export default function ArtistProfile({ id }: { id: string }) {
     const router = useRouter();
     const { user } = useAuth();
-    const canManage = user?.role !== "USER";
+    const isManager = user?.role === "ARTIST_MANAGER";
     const confirm = useConfirm();
     const artistReq = useApi<{ artist: ArtistDTO }>(`/api/artists/${id}`);
-    const gigsReq = useApi<{ gigs: GigDTO[] }>(`/api/gigs?artistId=${encodeURIComponent(id)}`);
+    const ownId = useOwnArtistId();
+    // bookings: the manager sees every artist's, an Artist only their own (the server refuses the rest)
+    const gigsReq = useApi<{ gigs: GigDTO[] }>(isManager || (user?.role === "ARTIST" && ownId === id) ? `/api/gigs?artistId=${encodeURIComponent(id)}` : null);
     const { songs } = useSongs();
     const [gigOpen, setGigOpen] = useState(false);
     const [editing, setEditing] = useState<GigDTO | undefined>();
@@ -60,6 +63,7 @@ export default function ArtistProfile({ id }: { id: string }) {
         return <LoadState loading={artistReq.loading} error={artistReq.error ?? "Artist not found"} onRetry={artistReq.reload} notFound="This artist does not exist or is not shared with you." />;
     }
 
+    const canManage = !!user && canEditArtist(user, artist);
     const gigs = gigsReq.data?.gigs ?? [];
     const upcoming = gigs.filter((g) => Date.parse(g.date) >= now && g.status !== "CANCELLED");
     const past = gigs.filter((g) => !upcoming.includes(g)).reverse();
@@ -90,7 +94,7 @@ export default function ArtistProfile({ id }: { id: string }) {
     return (
         <>
             <PageHeader
-                back={<BackLink href={routes.artists}>All artists</BackLink>}
+                back={isManager ? <BackLink href={routes.artists}>All artists</BackLink> : <BackLink href={routes.dashboard}>Dashboard</BackLink>}
                 title={artist.name}
                 subtitle={
                     artist.address ? (
@@ -101,16 +105,15 @@ export default function ArtistProfile({ id }: { id: string }) {
                 }
                 actions={
                     <>
-                        <FavoriteButton type="ARTIST" id={artist.id} name={artist.name} size="md" />
                         {canManage && (
-                            <>
-                                <Link href={routes.artistEdit(artist.id)} className="btn btn-outline gap-2">
-                                    <LuPencil aria-hidden /> Edit
-                                </Link>
-                                <button type="button" className="btn btn-ghost text-error gap-2" onClick={() => void remove()}>
-                                    <LuTrash2 aria-hidden /> Delete
-                                </button>
-                            </>
+                            <Link href={routes.artistEdit(artist.id)} className="btn btn-outline gap-2">
+                                <LuPencil aria-hidden /> {isManager ? "Edit" : "Edit my profile"}
+                            </Link>
+                        )}
+                        {isManager && (
+                            <button type="button" className="btn btn-ghost text-error gap-2" onClick={() => void remove()}>
+                                <LuTrash2 aria-hidden /> Delete
+                            </button>
                         )}
                     </>
                 }
@@ -145,18 +148,18 @@ export default function ArtistProfile({ id }: { id: string }) {
                         <div>
                             <h2 className="text-base font-semibold">Discography</h2>
                             <p className="muted text-xs">
-                                {mine.length} song{mine.length === 1 ? "" : "s"}
+                                {mine.length} track{mine.length === 1 ? "" : "s"}
                                 {mine.length > 0 && ` · ${formatTotalDuration(totalSec)}`}
                             </p>
                         </div>
                         {canManage && (
                             <Link href={routes.musicNew} className="btn btn-primary btn-sm gap-1.5">
-                                <LuPlus aria-hidden /> Add song
+                                <LuPlus aria-hidden /> Add music
                             </Link>
                         )}
                     </div>
                     {albums.length === 0 ? (
-                        <EmptyState icon={<LuMusic size={26} />} title="No songs yet" message={canManage ? "Add the first song to start the discography." : "This artist has no songs yet."} />
+                        <EmptyState icon={<LuMusic size={26} />} title="No music yet" message={canManage ? "Add the first song to start the discography." : "This artist has not added any music yet."} />
                     ) : (
                         <div className="flex flex-col gap-5">
                             {albums.map(([album, idxs]) => (
@@ -192,7 +195,7 @@ export default function ArtistProfile({ id }: { id: string }) {
                             <Link href={routes.calendar} className="btn btn-ghost btn-sm">
                                 Open calendar
                             </Link>
-                            {canManage && (
+                            {isManager && (
                                 <button type="button" className="btn btn-outline btn-sm gap-1.5" onClick={() => openGig()}>
                                     <LuCalendarPlus aria-hidden /> Add gig
                                 </button>
@@ -231,7 +234,7 @@ export default function ArtistProfile({ id }: { id: string }) {
                                                     </div>
                                                     <span className="flex items-center gap-1">
                                                         <span className={`badge ${STATUS_BADGE[g.status]}`}>{STATUS_LABEL[g.status]}</span>
-                                                        {canManage && (
+                                                        {isManager && (
                                                             <button type="button" className="btn btn-ghost btn-xs btn-circle" aria-label={`Edit ${g.title}`} onClick={() => openGig(g)}>
                                                                 <LuPencil aria-hidden />
                                                             </button>
@@ -248,7 +251,7 @@ export default function ArtistProfile({ id }: { id: string }) {
                 </section>
             </div>
 
-            {canManage && <GigDialog open={gigOpen} onClose={() => setGigOpen(false)} gig={editing} artists={[artist]} defaultArtistId={artist.id} />}
+            {isManager && <GigDialog open={gigOpen} onClose={() => setGigOpen(false)} gig={editing} artists={[artist]} defaultArtistId={artist.id} />}
         </>
     );
 }

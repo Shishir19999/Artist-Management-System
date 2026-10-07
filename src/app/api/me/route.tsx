@@ -9,10 +9,10 @@ import { logActivity } from "@/lib/activity";
 const PW_MAX_ATTEMPTS = 5;
 const PW_WINDOW_MS = 15 * 60 * 1000;
 
-const userSelect = { id: true, name: true, email: true, image: true, gender: true, role: true } as const;
+const userSelect = { id: true, name: true, email: true, image: true, gender: true, role: true, phone: true, address: true, birthDate: true } as const;
 
 export async function GET() {
-    const auth = await authorize(["ADMIN", "ARTIST_MANAGER", "USER"]);
+    const auth = await authorize(["USER", "ARTIST", "ARTIST_MANAGER"]);
     if (auth.error) return auth.error;
 
     const user = await prisma.user.findUnique({ where: { id: auth.user.id }, select: userSelect });
@@ -22,7 +22,7 @@ export async function GET() {
 
 // Own profile only. Role and e-mail can never be changed here.
 export async function PUT(request: NextRequest) {
-    const auth = await authorize(["ADMIN", "ARTIST_MANAGER", "USER"]);
+    const auth = await authorize(["USER", "ARTIST", "ARTIST_MANAGER"]);
     if (auth.error) return auth.error;
 
     const body = await readJson(request);
@@ -54,6 +54,9 @@ export async function PUT(request: NextRequest) {
         data: {
             name: data.name,
             ...(data.gender ? { gender: data.gender } : {}),
+            phone: cleanOpt(data.phone),
+            address: cleanOpt(data.address),
+            birthDate: data.birthDate == null ? (data.birthDate === null ? null : undefined) : new Date(`${data.birthDate}T00:00:00.000Z`),
             image: cleanOpt(data.image),
             // a password change revokes every existing session
             ...(newHash ? { password: newHash, tokenVersion: { increment: 1 } } : {}),

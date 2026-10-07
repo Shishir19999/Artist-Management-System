@@ -22,7 +22,7 @@ export const metadata: Metadata = {
     template: "%s | Artist Studio",
   },
   description:
-    "Manage artists, songs, playlists and bookings in one place. Role-based access for admins, artist managers and users, with analytics, CSV import and export and audio previews.",
+    "Manage artists, music, playlists and bookings in one place. Role-based access for artist managers, artists and users, with analytics, CSV import and export and audio previews.",
   applicationName: "Artist Studio",
   keywords: ["artist management", "music catalogue", "bookings", "playlists", "dashboard"],
   openGraph: {

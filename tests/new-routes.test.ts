@@ -89,8 +89,10 @@ describe("authentication and role gates", () => {
         });
     }
 
-    it("USER cannot write gigs (403)", async () => {
+    it("USER and ARTIST cannot write gigs (403)", async () => {
         as("USER");
+        expect((await gigs.POST(req("/api/gigs", "POST", validGig))).status).toBe(403);
+        as("ARTIST");
         expect((await gigs.POST(req("/api/gigs", "POST", validGig))).status).toBe(403);
         expect((await gigOne.PUT(req("/api/gigs/g1", "PUT", validGig), ctx("gig_id", "g1"))).status).toBe(403);
         expect((await gigOne.DELETE(req("/api/gigs/g1", "DELETE"), ctx("gig_id", "g1"))).status).toBe(403);
@@ -110,17 +112,6 @@ describe("gigs", () => {
         expect(body.gigs[0]).not.toHaveProperty("updated_at");
         expect(db.gig.findMany.mock.calls[0][0].where).toEqual({ artistId: "a1" });
     });
-    it("USER only reads gigs of artists they created", async () => {
-        as("USER", "u9");
-        db.gig.findMany.mockResolvedValue([]);
-        await gigs.GET(req("/api/gigs"));
-        expect(db.gig.findMany.mock.calls[0][0].where).toEqual({ artist: { createdBy: "u9" } });
-    });
-    it("USER gets 404 for a gig of someone else's artist", async () => {
-        as("USER", "u9");
-        db.gig.findUnique.mockResolvedValue({ ...gigRow, artist: { createdBy: "other" } });
-        expect((await gigOne.GET(req("/api/gigs/g1"), ctx("gig_id", "g1"))).status).toBe(404);
-    });
     it("POST validates the body (400 with issues) and malformed JSON", async () => {
         as("ARTIST_MANAGER", "m1");
         const bad = await gigs.POST(req("/api/gigs", "POST", { title: "x" }));
@@ -129,7 +120,7 @@ describe("gigs", () => {
         expect((await gigs.POST(req("/api/gigs", "POST", undefined, "{nope"))).status).toBe(400);
     });
     it("POST rejects an unknown artist with 400", async () => {
-        as("ADMIN", "a0");
+        as("ARTIST_MANAGER", "a0");
         db.artist.findUnique.mockResolvedValue(null);
         expect((await gigs.POST(req("/api/gigs", "POST", validGig))).status).toBe(400);
         expect(db.gig.create).not.toHaveBeenCalled();
@@ -153,7 +144,7 @@ describe("gigs", () => {
         expect((await gigOne.DELETE(req("/api/gigs/x", "DELETE"), ctx("gig_id", "x"))).status).toBe(404);
     });
     it("DELETE removes the gig", async () => {
-        as("ADMIN", "a0");
+        as("ARTIST_MANAGER", "a0");
         db.gig.findUnique.mockResolvedValue(gigRow);
         db.gig.delete.mockResolvedValue(gigRow);
         expect((await gigOne.DELETE(req("/api/gigs/g1", "DELETE"), ctx("gig_id", "g1"))).status).toBe(200);
@@ -163,14 +154,14 @@ describe("gigs", () => {
 
 describe("playlists", () => {
     it("lists only the caller's playlists with ordered songIds", async () => {
-        as("USER", "u1");
+        as("ARTIST_MANAGER", "u1");
         db.playlist.findMany.mockResolvedValue([plRow()]);
         const body = await (await playlists.GET()).json();
         expect(db.playlist.findMany.mock.calls[0][0].where).toEqual({ ownerId: "u1" });
         expect(body.playlists[0].songIds).toEqual(["s1", "s2"]);
     });
     it("returns 404 for another user's playlist on GET/PUT/DELETE, even for admins", async () => {
-        as("ADMIN", "a0");
+        as("ARTIST_MANAGER", "a0");
         db.playlist.findUnique.mockResolvedValue(plRow({ ownerId: "someone-else" }));
         expect((await playlistOne.GET(req("/api/playlists/p1"), ctx("playlist_id", "p1"))).status).toBe(404);
         expect((await playlistOne.PUT(req("/api/playlists/p1", "PUT", { name: "n" }), ctx("playlist_id", "p1"))).status).toBe(404);
@@ -178,17 +169,17 @@ describe("playlists", () => {
         expect(db.playlist.delete).not.toHaveBeenCalled();
     });
     it("POST validates the name", async () => {
-        as("USER", "u1");
+        as("ARTIST_MANAGER", "u1");
         const res = await playlists.POST(req("/api/playlists", "POST", { name: "" }));
         expect(res.status).toBe(400);
     });
-    it("POST rejects songs the user cannot see (Unknown song)", async () => {
-        as("USER", "u1");
+    it("POST rejects unknown songs (Unknown song)", async () => {
+        as("ARTIST_MANAGER", "u1");
         db.music.findMany.mockResolvedValue([{ id: "s1" }]); // s2 is not visible
         const res = await playlists.POST(req("/api/playlists", "POST", { name: "Mix", songIds: ["s1", "s2"] }));
         expect(res.status).toBe(400);
         expect((await res.json()).error).toBe("Unknown song");
-        expect(db.music.findMany.mock.calls[0][0].where).toEqual({ id: { in: ["s1", "s2"] }, artist: { createdBy: "u1" } });
+        expect(db.music.findMany.mock.calls[0][0].where).toEqual({ id: { in: ["s1", "s2"] } });
         expect(db.playlist.create).not.toHaveBeenCalled();
     });
     it("managers may use any song", async () => {
@@ -200,7 +191,7 @@ describe("playlists", () => {
         expect(db.music.findMany.mock.calls[0][0].where).toEqual({ id: { in: ["s1"] } });
     });
     it("de-duplicates song ids keeping order and stores positions", async () => {
-        as("ADMIN", "a0");
+        as("ARTIST_MANAGER", "a0");
         db.music.findMany.mockResolvedValue([{ id: "b" }, { id: "a" }]);
         db.playlist.create.mockResolvedValue(plRow({ ownerId: "a0", items: [] }));
         await playlists.POST(req("/api/playlists", "POST", { name: "Mix", songIds: ["b", "a", "b"] }));
@@ -211,7 +202,7 @@ describe("playlists", () => {
         expect(db.playlist.create.mock.calls[0][0].data.ownerId).toBe("a0");
     });
     it("PUT replaces songs inside one transaction", async () => {
-        as("USER", "u1");
+        as("ARTIST_MANAGER", "u1");
         db.playlist.findUnique.mockResolvedValue(plRow());
         db.music.findMany.mockResolvedValue([{ id: "s3" }, { id: "s1" }]);
         db.playlistItem.deleteMany.mockReturnValue("del");
@@ -226,7 +217,7 @@ describe("playlists", () => {
         expect((await res.json()).playlist.songIds).toEqual(["s3", "s1"]);
     });
     it("DELETE removes an owned playlist", async () => {
-        as("USER", "u1");
+        as("ARTIST_MANAGER", "u1");
         db.playlist.findUnique.mockResolvedValue(plRow());
         db.playlist.delete.mockResolvedValue({});
         expect((await playlistOne.DELETE(req("/api/playlists/p1", "DELETE"), ctx("playlist_id", "p1"))).status).toBe(200);
@@ -235,30 +226,24 @@ describe("playlists", () => {
 
 describe("favorites", () => {
     it("lists only own favorites in DTO shape", async () => {
-        as("USER", "u1");
+        as("ARTIST_MANAGER", "u1");
         db.favorite.findMany.mockResolvedValue([{ id: "f", userId: "u1", targetType: "SONG", targetId: "s1", created_at: D }]);
         const body = await (await favorites.GET()).json();
         expect(body).toEqual({ favorites: [{ targetType: "SONG", targetId: "s1" }] });
         expect(db.favorite.findMany.mock.calls[0][0].where).toEqual({ userId: "u1" });
     });
     it("validates the body", async () => {
-        as("USER", "u1");
+        as("ARTIST_MANAGER", "u1");
         expect((await favorites.POST(req("/api/favorites", "POST", { targetType: "GIG", targetId: "x" }))).status).toBe(400);
         expect((await favorites.POST(req("/api/favorites", "POST", undefined, "oops"))).status).toBe(400);
     });
-    it("404 when the target is not visible to a USER", async () => {
-        as("USER", "u1");
+    it("404 when the target does not exist", async () => {
+        as("ARTIST_MANAGER", "u1");
         db.artist.findFirst.mockResolvedValue(null);
         const res = await favorites.POST(req("/api/favorites", "POST", { targetType: "ARTIST", targetId: "a9" }));
         expect(res.status).toBe(404);
-        expect(db.artist.findFirst.mock.calls[0][0].where).toEqual({ id: "a9", createdBy: "u1" });
-    });
-    it("songs of foreign artists are not favoritable by a USER", async () => {
-        as("USER", "u1");
         db.music.findFirst.mockResolvedValue(null);
-        const res = await favorites.POST(req("/api/favorites", "POST", { targetType: "SONG", targetId: "s9" }));
-        expect(res.status).toBe(404);
-        expect(db.music.findFirst.mock.calls[0][0].where).toEqual({ id: "s9", artist: { createdBy: "u1" } });
+        expect((await favorites.POST(req("/api/favorites", "POST", { targetType: "SONG", targetId: "s9" }))).status).toBe(404);
     });
     it("toggles on, then off", async () => {
         as("ARTIST_MANAGER", "m1");
@@ -278,29 +263,25 @@ describe("favorites", () => {
 
 describe("activity", () => {
     const row = { id: "l1", userId: "u1", userName: "U", action: "CREATE", entity: "ARTIST", entityId: "a1", summary: "Created artist X", created_at: D };
-    it("non-admins only get their own rows, default limit 50", async () => {
-        as("USER", "u1");
+    it("USER and ARTIST are forbidden (403)", async () => {
+        for (const role of ["USER", "ARTIST"] as const) {
+            as(role, "u1");
+            expect((await activity.GET(req("/api/activity"))).status).toBe(403);
+        }
+        expect(db.activityLog.findMany).not.toHaveBeenCalled();
+    });
+    it("manager gets everything, default limit 50", async () => {
+        as("ARTIST_MANAGER", "u1");
         db.activityLog.findMany.mockResolvedValue([row]);
         const res = await activity.GET(req("/api/activity"));
         const arg = db.activityLog.findMany.mock.calls[0][0];
-        expect(arg.where).toEqual({ userId: "u1" });
+        expect(arg.where).toEqual({});
         expect(arg.take).toBe(50);
         expect(arg.orderBy).toEqual({ created_at: "desc" });
         expect((await res.json()).activity[0].created_at).toBe(D.toISOString());
     });
-    it("non-admins asking for a foreign userId get 403", async () => {
-        as("ARTIST_MANAGER", "m1");
-        expect((await activity.GET(req("/api/activity?userId=other"))).status).toBe(403);
-        expect(db.activityLog.findMany).not.toHaveBeenCalled();
-    });
-    it("non-admins may pass their own userId", async () => {
-        as("ARTIST_MANAGER", "m1");
-        db.activityLog.findMany.mockResolvedValue([]);
-        expect((await activity.GET(req("/api/activity?userId=m1"))).status).toBe(200);
-        expect(db.activityLog.findMany.mock.calls[0][0].where).toEqual({ userId: "m1" });
-    });
     it("admin sees everything and may filter by user", async () => {
-        as("ADMIN", "a0");
+        as("ARTIST_MANAGER", "a0");
         db.activityLog.findMany.mockResolvedValue([]);
         await activity.GET(req("/api/activity"));
         expect(db.activityLog.findMany.mock.calls[0][0].where).toEqual({});
@@ -308,7 +289,7 @@ describe("activity", () => {
         expect(db.activityLog.findMany.mock.calls[1][0].where).toEqual({ userId: "u5" });
     });
     it("clamps the limit to 1..200 and ignores junk", async () => {
-        as("ADMIN", "a0");
+        as("ARTIST_MANAGER", "a0");
         db.activityLog.findMany.mockResolvedValue([]);
         for (const [q, expected] of [["500", 200], ["0", 1], ["-4", 1], ["abc", 50], ["25", 25]] as const) {
             db.activityLog.findMany.mockClear();
@@ -330,16 +311,16 @@ describe("/api/me", () => {
         expect(JSON.stringify(body)).not.toContain("password");
     });
     it("PUT validates the body", async () => {
-        as("USER", "u1");
+        as("ARTIST", "u1");
         expect((await me.PUT(req("/api/me", "PUT", { name: "J" }))).status).toBe(400);
         expect((await me.PUT(req("/api/me", "PUT", { name: "Joe", newPassword: "longenough" }))).status).toBe(400);
         expect((await me.PUT(req("/api/me", "PUT", undefined, "{bad"))).status).toBe(400);
     });
     it("PUT updates name/gender only, never role or email, without revoking sessions", async () => {
-        as("USER", "u1");
+        as("ARTIST", "u1");
         db.user.findUnique.mockResolvedValue({ id: "u1", password: "h" });
         db.user.update.mockResolvedValue({ ...userRow, name: "Joe" });
-        const res = await me.PUT(req("/api/me", "PUT", { name: "Joe", gender: "OTHER", role: "ADMIN", email: "x@example.com" }));
+        const res = await me.PUT(req("/api/me", "PUT", { name: "Joe", gender: "OTHER", role: "ARTIST_MANAGER", email: "x@example.com" }));
         expect(res.status).toBe(200);
         expect(await res.json()).toEqual({ user: { ...userRow, name: "Joe" } });
         const data = db.user.update.mock.calls[0][0].data;
@@ -347,14 +328,14 @@ describe("/api/me", () => {
         expect(data).not.toHaveProperty("tokenVersion");
     });
     it("PUT clears the image with null", async () => {
-        as("USER", "u1");
+        as("ARTIST", "u1");
         db.user.findUnique.mockResolvedValue({ id: "u1", password: "h" });
         db.user.update.mockResolvedValue(userRow);
         await me.PUT(req("/api/me", "PUT", { name: "Joe", image: null }));
         expect(db.user.update.mock.calls[0][0].data.image).toBeNull();
     });
     it("PUT rejects a wrong current password", async () => {
-        as("USER", "u1");
+        as("ARTIST", "u1");
         db.user.findUnique.mockResolvedValue({ id: "u1", password: "h" });
         bcryptCompare.mockResolvedValue(false);
         const res = await me.PUT(req("/api/me", "PUT", { name: "Joe", currentPassword: "nope", newPassword: "newpass123" }));
@@ -363,7 +344,7 @@ describe("/api/me", () => {
         expect(db.user.update).not.toHaveBeenCalled();
     });
     it("PUT changes the password, bumps tokenVersion and asks the client to sign out", async () => {
-        as("USER", "u1");
+        as("ARTIST", "u1");
         db.user.findUnique.mockResolvedValue({ id: "u1", password: "h" });
         bcryptCompare.mockResolvedValue(true);
         db.user.update.mockResolvedValue(userRow);
@@ -375,14 +356,14 @@ describe("/api/me", () => {
         expect(data.tokenVersion).toEqual({ increment: 1 });
     });
     it("PUT refuses to set a password on an account without one (Google)", async () => {
-        as("USER", "u1");
+        as("ARTIST", "u1");
         db.user.findUnique.mockResolvedValue({ id: "u1", password: null });
         const res = await me.PUT(req("/api/me", "PUT", { name: "Joe", currentPassword: "x", newPassword: "newpass123" }));
         expect(res.status).toBe(400);
         expect(db.user.update).not.toHaveBeenCalled();
     });
     it("PUT rate-limits password attempts (429 after 5 tries)", async () => {
-        as("USER", "u1");
+        as("ARTIST", "u1");
         db.user.findUnique.mockResolvedValue({ id: "u1", password: "h" });
         bcryptCompare.mockResolvedValue(false);
         const body = { name: "Joe", currentPassword: "nope", newPassword: "newpass123" };

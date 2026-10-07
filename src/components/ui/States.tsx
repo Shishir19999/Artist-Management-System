@@ -43,7 +43,7 @@ export function EmptyState({
             <span className="bg-base-200 text-primary flex size-14 items-center justify-center rounded-full" aria-hidden>
                 {icon ?? <LuInbox size={26} />}
             </span>
-            <h3 className="text-lg font-semibold">{title}</h3>
+            <h2 className="text-lg font-semibold">{title}</h2>
             {message && <p className="muted max-w-md text-sm">{message}</p>}
             {action}
         </div>
@@ -56,7 +56,7 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry?: ()
             <span className="bg-base-200 text-error flex size-14 items-center justify-center rounded-full" aria-hidden>
                 <LuCircleAlert size={26} />
             </span>
-            <h3 className="text-lg font-semibold">Something went wrong</h3>
+            <h2 className="text-lg font-semibold">Something went wrong</h2>
             <p className="muted max-w-md text-sm">{message}</p>
             {onRetry && (
                 <button type="button" className="btn btn-primary btn-sm" onClick={onRetry}>
