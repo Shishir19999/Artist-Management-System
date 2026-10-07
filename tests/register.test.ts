@@ -34,13 +34,30 @@ beforeEach(() => {
 });
 
 describe("POST /api/auth/register", () => {
-    it("creates a USER even if the client asks for ADMIN, hashes password, hides hash", async () => {
+    it("creates a USER by default, hashes the password and hides the hash", async () => {
         findUnique.mockResolvedValue(null);
         create.mockImplementation(async ({ data }) => ({ id: "n1", ...data }));
-        const res = await POST(req({ ...valid, email: "J@x.io", role: "ADMIN" }));
+        const res = await POST(req({ ...valid, email: "J@x.io" }));
         expect(res.status).toBe(201);
         expect(create.mock.calls[0][0].data).toEqual({ name: "Jane", email: "j@x.io", password: "hashed:password1", role: "USER" });
         expect((await res.json()).data).toEqual({ id: "n1", name: "Jane", email: "j@x.io", role: "USER" });
+    });
+    it("refuses to self-register an ARTIST_MANAGER (or ADMIN)", async () => {
+        for (const role of ["ARTIST_MANAGER", "ADMIN"]) {
+            expect((await POST(req({ ...valid, role }))).status).toBe(400);
+        }
+        expect(create).not.toHaveBeenCalled();
+    });
+    it("creates an ARTIST with a linked empty artist record and the optional profile fields", async () => {
+        findUnique.mockResolvedValue(null);
+        create.mockImplementation(async ({ data }) => ({ id: "n2", ...data }));
+        const res = await POST(req({ ...valid, role: "ARTIST", phone: "123", address: "KTM", gender: "FEMALE", birthDate: "2000-01-02" }));
+        expect(res.status).toBe(201);
+        const data = create.mock.calls[0][0].data;
+        expect(data).toMatchObject({ role: "ARTIST", phone: "123", address: "KTM", gender: "FEMALE" });
+        expect(data.birthDate.toISOString()).toBe("2000-01-02T00:00:00.000Z");
+        expect(data.artistProfile).toEqual({ create: { name: "Jane", gender: "FEMALE", address: "KTM" } });
+        expect((await res.json()).data.role).toBe("ARTIST");
     });
     it("409 when the email exists", async () => {
         findUnique.mockResolvedValue({ id: "e" });

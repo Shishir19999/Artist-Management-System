@@ -48,6 +48,24 @@ export default function UserDetail({ id }: { id: string }) {
                         <dd className="mb-2 font-medium break-all">{user.email}</dd>
                         <dt className="muted text-xs">Role</dt>
                         <dd className="badge badge-primary badge-soft">{ROLE_LABEL[user.role]}</dd>
+                        {user.phone && (
+                            <>
+                                <dt className="muted mt-2 text-xs">Phone</dt>
+                                <dd className="font-medium">{user.phone}</dd>
+                            </>
+                        )}
+                        {user.address && (
+                            <>
+                                <dt className="muted mt-2 text-xs">Address</dt>
+                                <dd className="font-medium">{user.address}</dd>
+                            </>
+                        )}
+                        {user.birthDate && (
+                            <>
+                                <dt className="muted mt-2 text-xs">Date of birth</dt>
+                                <dd className="font-medium">{user.birthDate}</dd>
+                            </>
+                        )}
                     </dl>
                 </section>
                 <section className="surface p-5 lg:col-span-2" aria-label="Recent activity">

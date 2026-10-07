@@ -20,6 +20,9 @@ function ProfileForm({ me }: { me: UserDTO }) {
     const auth = useAuth();
     const [name, setName] = useState(me.name ?? "");
     const [gender, setGender] = useState<string>(me.gender);
+    const [phone, setPhone] = useState(me.phone ?? "");
+    const [address, setAddress] = useState(me.address ?? "");
+    const [birthDate, setBirthDate] = useState(me.birthDate ? me.birthDate.slice(0, 10) : "");
     const [image, setImage] = useState<string | null>(me.image);
     const [current, setCurrent] = useState("");
     const [next, setNext] = useState("");
@@ -39,6 +42,9 @@ function ProfileForm({ me }: { me: UserDTO }) {
             const res = await axios.put("/api/me", {
                 name: name.trim(),
                 gender,
+                phone: phone.trim() || null,
+                address: address.trim() || null,
+                birthDate: birthDate || null,
                 image,
                 ...(next ? { currentPassword: current, newPassword: next } : {}),
             });
@@ -71,7 +77,10 @@ function ProfileForm({ me }: { me: UserDTO }) {
                         </option>
                     ))}
                 </SelectField>
-                <TextField label="Role" value={ROLE_LABEL[me.role]} readOnly hint="Only an admin can change roles" />
+                <TextField label="Phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} autoComplete="tel" />
+                <TextField label="Address" value={address} onChange={(e) => setAddress(e.target.value)} autoComplete="street-address" />
+                <TextField label="Date of birth" type="date" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} autoComplete="bday" />
+                <TextField label="Role" value={ROLE_LABEL[me.role]} readOnly hint="Only an Artist Manager can change roles" />
             </div>
             <fieldset className="grid gap-4 sm:grid-cols-2">
                 <legend className="mb-3 text-base font-semibold">Change password</legend>
@@ -118,20 +127,20 @@ export default function ProfilePage() {
                         </section>
                         <section className="surface p-5" aria-label="Guided tour">
                             <h2 className="mb-1 text-base font-semibold">Guided tour</h2>
-                            <p className="muted mb-3 text-sm">Replay the short introduction on your next visit to the dashboard.</p>
+                            <p className="muted mb-3 text-sm">Bring the short introduction back. It appears as a small card above your page.</p>
                             <button
                                 type="button"
                                 className="btn btn-outline btn-sm gap-2"
                                 onClick={() => {
                                     if (user) resetTour(user.id);
-                                    showInfo("The tour will start when you reload the page");
+                                    showInfo("The tour card is back on your pages");
                                 }}
                             >
-                                <LuRotateCcw aria-hidden /> Replay tour
+                                <LuRotateCcw aria-hidden /> Show the tour card
                             </button>
                         </section>
                         {IS_DEMO && (
-                            <p className="muted text-xs">Demo mode: your profile is stored only in this browser.</p>
+                            <p className="muted text-xs">Live preview: your profile is stored only in this browser.</p>
                         )}
                     </div>
                 </div>

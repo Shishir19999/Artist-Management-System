@@ -31,6 +31,8 @@ export interface SongDTO {
     durationSec: number | null;
     releaseDate: string | null; // ISO date-time (midnight UTC)
     coverUrl: string | null; // data URL
+    /** name of the artist, so listeners (who have no artist directory) can still show it */
+    artistName?: string | null;
     created_at: string;
     updated_at: string;
 }
@@ -42,6 +44,9 @@ export interface UserDTO {
     image: string | null;
     gender: GenderKey;
     role: AppRole;
+    phone?: string | null;
+    address?: string | null;
+    birthDate?: string | null; // YYYY-MM-DD
 }
 
 export interface PlaylistDTO {

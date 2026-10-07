@@ -8,7 +8,7 @@ import ThemeToggle from "@/components/ui/ThemeToggle";
 export default function AuthLayout({ children }: { children: ReactNode }) {
   const path = (usePathname() ?? "").replace(/\/$/, "");
   const heading = path === "/auth/register" ? "Create your account" : "Welcome back";
-  const sub = path === "/auth/register" ? "New accounts start with the User role." : "Sign in to manage your roster and catalogue.";
+  const sub = path === "/auth/register" ? "Choose User to listen, or Artist to publish your own music." : "Sign in to your Artist Studio workspace.";
 
   return (
     <div className="hero-gradient flex min-h-screen flex-col">

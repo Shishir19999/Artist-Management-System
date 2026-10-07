@@ -1,105 +1,91 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { LuCompass, LuX } from "react-icons/lu";
 import Modal from "@/components/ui/Modal";
+import { useLocalFlag, writeFlag } from "@/lib/client/local-flag";
 import { ROLE_LABEL } from "@/lib/domain/constants";
 import type { AppRole } from "@/lib/roles";
 
-const KEY = (userId: string) => `ams-tour-done:${userId}`;
+const tourKey = (userId: string) => `ams-tour:${userId}`;
 
 interface Step {
     title: string;
     body: string;
 }
 
-function stepsFor(role: AppRole): Step[] {
+export function stepsFor(role: AppRole): Step[] {
     const steps: Step[] = [
         {
-            title: "Welcome to your workspace",
+            title: "Welcome",
             body: `You are signed in as ${ROLE_LABEL[role]}. This short tour shows where things live. You can replay it from your account menu at any time.`,
         },
-        {
-            title: "Dashboard",
-            body: "See artists by genre, songs per release year, your top artists, upcoming gigs and the latest activity on one screen.",
-        },
+        { title: "Dashboard", body: "Your starting point. The cards show what you can work with and open the matching page." },
     ];
-    if (role === "USER") {
-        steps.push({
-            title: "Your artists and songs",
-            body: "Browse the artists and songs shared with you. Sort, filter and search the tables, choose which columns to show and export what you see as CSV.",
-        });
+    if (role === "ARTIST_MANAGER") {
+        steps.push(
+            { title: "Artists, Music and Users", body: "Add, edit and remove artists, their music and the people who use the workspace. Choose which role each user has." },
+            { title: "Tables", body: "Search, sort and filter any list, pick the columns you want, select rows for bulk actions and export or import CSV files." },
+            { title: "More", body: "Calendar plans gigs and bookings per artist. Activity shows who changed what." }
+        );
+    } else if (role === "ARTIST") {
+        steps.push(
+            { title: "My Profile", body: "Keep your biography, photo and links up to date. This is what everyone sees on your artist page." },
+            { title: "Music", body: "Add and edit your own songs. You can browse everyone else's music, but only change yours." },
+            { title: "More", body: "Calendar holds your gigs and bookings. Playlists collect songs you want to keep together." }
+        );
     } else {
-        steps.push({
-            title: "Artists and songs",
-            body: "Add and edit artists with photos, bios and social links, manage their songs, and use the checkboxes for bulk actions. Import or export CSV from any table.",
-        });
-        steps.push({
-            title: "Calendar",
-            body: "Plan gigs and bookings per artist and see them on a month calendar. Confirmed, on hold, completed and cancelled dates have their own markers.",
-        });
+        steps.push(
+            { title: "Music", body: "Browse all music, sort and filter the list and press play to hear a short preview." },
+            { title: "More", body: "Tap the heart on a song to keep it in Favorites, and group songs into Playlists." }
+        );
     }
-    steps.push({
-        title: "Playlists, favorites and previews",
-        body: "Press play on any song for a short preview, build playlists, and tap the heart to keep favorites close.",
-    });
-    if (role === "ADMIN") {
-        steps.push({
-            title: "Users and roles",
-            body: "Open Users to change roles, add accounts and review each person's audit trail. Role changes apply immediately.",
-        });
-    }
-    steps.push({
-        title: "Search from anywhere",
-        body: "Press Ctrl+K (or Cmd+K), or use the search button in the top bar, to jump to any artist, song or playlist.",
-    });
+    steps.push({ title: "Search from anywhere", body: "Press Ctrl+K (or Cmd+K), or use the Search button in the top bar, to jump straight to what you need." });
     return steps;
 }
 
-export function resetTour(userId: string) {
-    try {
-        localStorage.removeItem(KEY(userId));
-    } catch {
-        /* ignore */
-    }
+/**
+ * A small card at the top of the page. It never covers or blocks anything: the visitor can ignore it,
+ * start the tour, or dismiss it for good (remembered per user in this browser).
+ */
+export function TourPrompt({ userId, onStart }: { userId: string; onStart: () => void }) {
+    const [flag, setFlag] = useLocalFlag(tourKey(userId));
+    if (flag !== null) return null; // already seen, or storage not read yet
+    return (
+        <section aria-label="Welcome tour" className="bg-primary/10 border-primary/30 mb-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border px-4 py-3">
+            <LuCompass aria-hidden className="text-primary shrink-0" size={20} />
+            <p className="min-w-0 flex-1 basis-56 text-sm">
+                <span className="font-semibold">New here?</span> Take a 1-minute tour.
+            </p>
+            <div className="flex items-center gap-2">
+                <button
+                    type="button"
+                    className="btn btn-primary btn-sm min-h-11 sm:min-h-8"
+                    onClick={() => {
+                        setFlag("dismissed");
+                        onStart();
+                    }}
+                >
+                    Start
+                </button>
+                <button type="button" className="btn btn-ghost btn-sm min-h-11 sm:min-h-8" onClick={() => setFlag("dismissed")}>
+                    Dismiss
+                </button>
+                <button type="button" className="btn btn-ghost btn-sm btn-circle size-11 sm:size-8" aria-label="Close tour prompt" onClick={() => setFlag("dismissed")}>
+                    <LuX aria-hidden />
+                </button>
+            </div>
+        </section>
+    );
 }
 
-export default function OnboardingTour({
-    userId,
-    role,
-    forceOpen,
-    onClose,
-}: {
-    userId: string;
-    role: AppRole;
-    forceOpen: boolean;
-    onClose: () => void;
-}) {
-    const [open, setOpen] = useState(false);
+export default function OnboardingTour({ userId, role, open, onClose }: { userId: string; role: AppRole; open: boolean; onClose: () => void }) {
+    const [, setFlag] = useLocalFlag(tourKey(userId));
     const [step, setStep] = useState(0);
     const steps = stepsFor(role);
 
-    useEffect(() => {
-        let done = false;
-        try {
-            done = localStorage.getItem(KEY(userId)) === "1";
-        } catch {
-            done = true; // storage unavailable: do not nag on every page
-        }
-        if (!done || forceOpen) {
-            const t = setTimeout(() => {
-                setStep(0);
-                setOpen(true);
-            }, 600);
-            return () => clearTimeout(t);
-        }
-    }, [userId, forceOpen]);
-
     const finish = () => {
-        try {
-            localStorage.setItem(KEY(userId), "1");
-        } catch {
-            /* ignore */
-        }
-        setOpen(false);
+        setFlag("done");
+        setStep(0);
         onClose();
     };
 
@@ -135,4 +121,8 @@ export default function OnboardingTour({
             <p className="text-sm leading-relaxed">{current.body}</p>
         </Modal>
     );
+}
+
+export function resetTour(userId: string) {
+    writeFlag(tourKey(userId), null);
 }

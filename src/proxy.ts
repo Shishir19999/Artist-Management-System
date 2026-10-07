@@ -7,7 +7,7 @@ import { decideAccess } from "@/lib/domain/access";
  * Coarse, edge-level gate. Route handlers re-check authorization (src/lib/authz.ts),
  * including per-record ownership for USER.
  *
- * ADMIN: everything. ARTIST_MANAGER: artists/musics (+ dashboard). USER: read-only own data.
+ * ARTIST_MANAGER: everything. ARTIST: own artist + own music. USER: read-only music (src/lib/domain/access.ts).
  */
 export default withAuth(
     function middleware(req) {
@@ -34,7 +34,7 @@ export default withAuth(
                 : NextResponse.redirect(new URL("/not-allowed", req.url));
 
         if (!isRole(role)) return deny();
-        if (role === "ADMIN") return NextResponse.next();
+        if (role === "ARTIST_MANAGER") return NextResponse.next();
 
         return decideAccess({ pathname, method, role }) === "allow" ? NextResponse.next() : deny();
 

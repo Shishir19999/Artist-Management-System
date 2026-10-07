@@ -14,9 +14,12 @@ const DOT: Record<string, string> = { HOLD: "bg-warning", CONFIRMED: "bg-success
 
 export default function CalendarPage() {
     const { user } = useAuth();
-    const canManage = user?.role !== "USER";
+    const isArtist = user?.role === "ARTIST";
+    const canManage = user?.role === "ARTIST_MANAGER"; // an Artist sees their own gigs read-only
     const { gigs, loading, error, reload } = useGigs();
-    const { artists, byId } = useArtists();
+    const { artists: allArtists, byId } = useArtists();
+    // an Artist books their own gigs only; the manager picks any artist
+    const artists = isArtist ? allArtists.filter((a) => a.createdBy === user?.id) : allArtists;
     const today = new Date();
     const [cursor, setCursor] = useState({ y: today.getFullYear(), m: today.getMonth() });
     const [selected, setSelected] = useState<string>(dayKey(today));
@@ -44,7 +47,7 @@ export default function CalendarPage() {
         <>
             <PageHeader
                 title="Calendar"
-                subtitle={canManage ? "Gigs and bookings across the roster." : "Gigs of the artists shared with you."}
+                subtitle={isArtist ? "Your gigs and bookings." : "Gigs and bookings across the roster."}
                 actions={
                     canManage && (
                         <button type="button" className="btn btn-primary gap-2" onClick={() => setDialog({ date: defaultDate })} disabled={artists.length === 0}>
@@ -83,7 +86,7 @@ export default function CalendarPage() {
                                 </div>
                             ))}
                         </div>
-                        <div className="grid grid-cols-7 gap-1" role="grid" aria-label={title}>
+                        <div className="grid grid-cols-7 gap-1" role="group" aria-label={title}>
                             {cells.map((c) => {
                                 const list = byDay.get(c.key) ?? [];
                                 const isSel = c.key === selected;
@@ -91,13 +94,12 @@ export default function CalendarPage() {
                                     <button
                                         key={c.key}
                                         type="button"
-                                        role="gridcell"
-                                        aria-selected={isSel}
+                                        aria-pressed={isSel}
                                         aria-label={`${c.date.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}, ${list.length} gig${list.length === 1 ? "" : "s"}`}
                                         onClick={() => setSelected(c.key)}
                                         className={`flex min-h-14 flex-col items-center gap-1 rounded-lg border p-1 text-sm transition-colors sm:min-h-20 ${
                                             isSel ? "border-primary bg-primary/10" : "border-transparent hover:bg-base-200"
-                                        } ${c.inMonth ? "" : "opacity-50"} ${c.key === dayKey(today) ? "font-bold" : ""}`}
+                                        } ${c.inMonth ? "" : "muted"} ${c.key === dayKey(today) ? "font-bold" : ""}`}
                                     >
                                         <span className={c.key === dayKey(today) ? "bg-primary text-primary-content flex size-6 items-center justify-center rounded-full" : "flex size-6 items-center justify-center"}>
                                             {c.date.getDate()}

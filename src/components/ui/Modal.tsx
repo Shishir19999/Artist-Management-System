@@ -10,7 +10,6 @@ export default function Modal({
     children,
     footer,
     size = "md",
-    hideClose = false,
 }: {
     open: boolean;
     onClose: () => void;
@@ -18,21 +17,30 @@ export default function Modal({
     children: ReactNode;
     footer?: ReactNode;
     size?: "sm" | "md" | "lg";
-    hideClose?: boolean;
 }) {
     const ref = useRef<HTMLDialogElement>(null);
     const titleId = useId();
+    const opener = useRef<HTMLElement | null>(null);
 
     useEffect(() => {
         const d = ref.current;
         if (!d) return;
         if (open && !d.open) {
+            opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
             d.showModal();
             // children mount before the dialog opens, so their own autofocus is ignored: focus the marked field here
             d.querySelector<HTMLElement>("[data-autofocus]")?.focus();
         }
         if (!open && d.open) d.close();
     }, [open]);
+
+    // hand focus back to whatever opened the dialog (the browser does this too, but not for removed or re-rendered openers)
+    const handleClose = () => {
+        const target = opener.current;
+        opener.current = null;
+        if (target?.isConnected) target.focus();
+        onClose();
+    };
 
     const width = size === "sm" ? "max-w-sm" : size === "lg" ? "max-w-3xl" : "max-w-xl";
 
@@ -41,7 +49,7 @@ export default function Modal({
             ref={ref}
             className="modal"
             aria-labelledby={titleId}
-            onClose={onClose}
+            onClose={handleClose}
             onClick={(e) => {
                 if (e.target === ref.current) onClose();
             }}
@@ -52,11 +60,9 @@ export default function Modal({
                         <h2 id={titleId} className="text-lg font-semibold">
                             {title}
                         </h2>
-                        {!hideClose && (
-                            <button type="button" className="btn btn-ghost btn-sm btn-circle" aria-label="Close dialog" onClick={onClose}>
-                                <LuX size={18} aria-hidden />
-                            </button>
-                        )}
+                        <button type="button" className="btn btn-ghost btn-circle size-11" aria-label="Close dialog" onClick={onClose}>
+                            <LuX size={20} aria-hidden />
+                        </button>
                     </div>
                     <div className="overflow-y-auto px-5 py-4">{children}</div>
                     {footer && <div className="flex flex-wrap justify-end gap-2 border-t border-base-300 px-5 py-3">{footer}</div>}

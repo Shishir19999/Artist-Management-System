@@ -9,7 +9,8 @@ import { logActivity } from "@/lib/activity";
 const MAX_PER_WINDOW = 10;
 const WINDOW_MS = 15 * 60 * 1000;
 
-// PUBLIC endpoint: always creates a USER, whatever the client sends.
+// PUBLIC endpoint: creates a USER (default) or an ARTIST (with an empty linked artist record).
+// ARTIST_MANAGER can never be requested here: the schema rejects it.
 export async function POST(request: NextRequest) {
     const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
     if (!rateLimit(`register:${ip}`, MAX_PER_WINDOW, WINDOW_MS)) {
@@ -23,7 +24,7 @@ export async function POST(request: NextRequest) {
     if (!parsed.success) {
         return NextResponse.json({ error: parsed.error.issues }, { status: 400 });
     }
-    const { name, email, password } = parsed.data;
+    const { name, email, password, role, phone, address, gender, birthDate } = parsed.data;
 
     if (await prisma.user.findUnique({ where: { email } })) {
         return NextResponse.json({ error: "Email is already registered." }, { status: 409 });
@@ -31,7 +32,17 @@ export async function POST(request: NextRequest) {
 
     try {
         const user = await prisma.user.create({
-            data: { name, email, password: await bcrypt.hash(password, 10), role: "USER" },
+            data: {
+                name,
+                email,
+                password: await bcrypt.hash(password, 10),
+                role,
+                phone,
+                address,
+                ...(gender ? { gender } : {}),
+                ...(birthDate ? { birthDate: new Date(`${birthDate}T00:00:00.000Z`) } : {}),
+                ...(role === "ARTIST" ? { artistProfile: { create: { name, gender: gender ?? "MALE", address: address ?? null } } } : {}),
+            },
         });
         await logActivity(user, "REGISTER", "USER", user.id, `${user.name ?? "A new user"} registered`);
         return NextResponse.json({ data: { id: user.id, name: user.name, email: user.email, role: user.role } }, { status: 201 });

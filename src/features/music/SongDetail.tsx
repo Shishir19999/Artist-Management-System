@@ -11,8 +11,11 @@ import { useConfirm } from "@/components/ui/Confirm";
 import { BackLink, LoadState } from "@/components/ui/DetailGate";
 import { PageHeader } from "@/components/ui/States";
 import AddToPlaylist from "@/features/playlists/AddToPlaylist";
+import NotAvailable from "@/components/shell/NotAvailable";
 import { useAuth } from "@/lib/client/auth";
 import { formatDate, formatDuration } from "@/lib/client/format";
+import { useOwnArtistId } from "@/lib/client/hooks";
+import { canEditSong, canOpenPage } from "@/lib/client/role-policy";
 import { routes } from "@/lib/client/routes";
 import { invalidate, useApi } from "@/lib/client/use-api";
 import { GENRE_LABEL } from "@/lib/domain/constants";
@@ -24,12 +27,15 @@ import SongForm from "./SongForm";
 type SongWithArtist = SongDTO & { artist?: { name: string } | null };
 
 export function SongEdit({ id }: { id: string }) {
+    const { user } = useAuth();
+    const ownArtistId = useOwnArtistId();
     const req = useApi<{ music: SongWithArtist }>(`/api/musics/${id}`);
     const song = req.data?.music;
-    if (!song) return <LoadState loading={req.loading} error={req.error ?? "Song not found"} onRetry={req.reload} notFound="This song does not exist." />;
+    if (!song) return <LoadState loading={req.loading} error={req.error ?? "Track not found"} onRetry={req.reload} notFound="This song does not exist." />;
+    if (user && !canEditSong(user, song, ownArtistId)) return <NotAvailable role={user.role} />;
     return (
         <>
-            <PageHeader back={<BackLink href={routes.musicShow(id)}>Back to song</BackLink>} title={`Edit ${song.title}`} />
+            <PageHeader back={<BackLink href={routes.musicShow(id)}>Back to track</BackLink>} title={`Edit ${song.title}`} />
             <SongForm key={song.updated_at} song={song} />
         </>
     );
@@ -38,20 +44,23 @@ export function SongEdit({ id }: { id: string }) {
 export default function SongDetail({ id }: { id: string }) {
     const router = useRouter();
     const { user } = useAuth();
-    const canManage = user?.role !== "USER";
+    const role = user?.role ?? "USER";
+    const ownArtistId = useOwnArtistId();
     const confirm = useConfirm();
     const req = useApi<{ music: SongWithArtist }>(`/api/musics/${id}`);
     const [adding, setAdding] = useState(false);
     const song = req.data?.music;
-    if (!song) return <LoadState loading={req.loading} error={req.error ?? "Song not found"} onRetry={req.reload} notFound="This song does not exist or is not shared with you." />;
+    if (!song) return <LoadState loading={req.loading} error={req.error ?? "Track not found"} onRetry={req.reload} notFound="This track does not exist." />;
 
+    const canManage = !!user && canEditSong(user, song, ownArtistId);
+    const withPlaylists = true;
     const remove = async () => {
         const ok = await confirm({ title: `Delete ${song.title}?`, message: "It is also removed from playlists and favorites.", confirmLabel: "Delete" });
         if (!ok) return;
         try {
             await axios.delete(`/api/musics/${song.id}`);
             invalidate();
-            showSucces("Song deleted");
+            showSucces("Music deleted");
             router.push(routes.music);
         } catch (e) {
             showError(handleError(e));
@@ -60,7 +69,7 @@ export default function SongDetail({ id }: { id: string }) {
 
     const artistName = song.artist?.name ?? "";
     const rows: [string, React.ReactNode][] = [
-        ["Artist", song.artistId ? <Link key="a" href={routes.artistShow(song.artistId)} className="link link-hover">{artistName || "View artist"}</Link> : "-"],
+        ["Artist", song.artistId && canOpenPage(role, routes.artistShow("x")) ? <Link key="a" href={routes.artistShow(song.artistId)} className="link link-hover">{artistName || "View artist"}</Link> : artistName || "-"],
         ["Album", song.album || "-"],
         ["Genre", GENRE_LABEL[song.genre]],
         ["Duration", formatDuration(song.durationSec)],
@@ -71,15 +80,17 @@ export default function SongDetail({ id }: { id: string }) {
     return (
         <>
             <PageHeader
-                back={<BackLink href={routes.music}>All songs</BackLink>}
+                back={<BackLink href={routes.music}>All music</BackLink>}
                 title={song.title}
                 subtitle={artistName || undefined}
                 actions={
                     <>
                         <FavoriteButton type="SONG" id={song.id} name={song.title} size="md" />
-                        <button type="button" className="btn btn-outline gap-2" onClick={() => setAdding(true)}>
-                            <LuListPlus aria-hidden /> Add to playlist
-                        </button>
+                        {withPlaylists && (
+                            <button type="button" className="btn btn-outline gap-2" onClick={() => setAdding(true)}>
+                                <LuListPlus aria-hidden /> Add to playlist
+                            </button>
+                        )}
                         {canManage && (
                             <>
                                 <Link href={routes.musicEdit(song.id)} className="btn btn-outline gap-2">

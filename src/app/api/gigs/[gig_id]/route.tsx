@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "../../../../../prisma/PrismaClient";
-import { authorize, badJson, canManage, readJson } from "@/lib/authz";
+import { authorize, badJson, readJson } from "@/lib/authz";
+import { ownArtistId } from "@/lib/artist-profile";
 import { GigSchema, cleanOpt } from "@/lib/domain/schemas";
 import { toGigDTO } from "@/lib/domain/serialize";
 import { logActivity } from "@/lib/activity";
@@ -9,12 +10,12 @@ type Ctx = { params: Promise<{ gig_id: string }> };
 
 export async function GET(request: NextRequest, props: Ctx) {
     const { gig_id } = await props.params;
-    const auth = await authorize(["ADMIN", "ARTIST_MANAGER", "USER"]);
+    const auth = await authorize(["ARTIST", "ARTIST_MANAGER"]);
     if (auth.error) return auth.error;
 
-    const gig = await prisma.gig.findUnique({ where: { id: gig_id }, include: { artist: { select: { createdBy: true } } } });
-    // USER may only read gigs of artists they own; hide existence of others
-    if (!gig || (!canManage(auth.user.role) && gig.artist?.createdBy !== auth.user.id)) {
+    const gig = await prisma.gig.findUnique({ where: { id: gig_id },  });
+    // an ARTIST may only read gigs of their own linked artist; hide existence of others
+    if (!gig || (auth.user.role === "ARTIST" && gig.artistId !== (await ownArtistId(auth.user.id)))) {
         return NextResponse.json({ error: "Gig not found!" }, { status: 404 });
     }
     return NextResponse.json({ gig: toGigDTO(gig) }, { status: 200 });
@@ -22,7 +23,7 @@ export async function GET(request: NextRequest, props: Ctx) {
 
 export async function PUT(request: NextRequest, props: Ctx) {
     const { gig_id } = await props.params;
-    const auth = await authorize(["ADMIN", "ARTIST_MANAGER"]);
+    const auth = await authorize(["ARTIST_MANAGER"]);
     if (auth.error) return auth.error;
 
     const body = await readJson(request);
@@ -57,7 +58,7 @@ export async function PUT(request: NextRequest, props: Ctx) {
 
 export async function DELETE(request: NextRequest, props: Ctx) {
     const { gig_id } = await props.params;
-    const auth = await authorize(["ADMIN", "ARTIST_MANAGER"]);
+    const auth = await authorize(["ARTIST_MANAGER"]);
     if (auth.error) return auth.error;
 
     const gig = await prisma.gig.findUnique({ where: { id: gig_id } });

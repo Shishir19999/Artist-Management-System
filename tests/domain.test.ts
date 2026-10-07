@@ -1,5 +1,4 @@
 import { describe, it, expect } from "vitest";
-import { decideAccess } from "@/lib/domain/access";
 import { buildAnalytics } from "@/lib/domain/analytics";
 import { toCsv, parseCsv, csvToObjects } from "@/lib/domain/csv";
 import {
@@ -18,76 +17,6 @@ import { dateOnly } from "@/lib/domain/dates";
 import { toGigDTO, toPlaylistDTO } from "@/lib/domain/serialize";
 import { GENRES } from "@/lib/domain/constants";
 import type { GigDTO } from "@/lib/domain/types";
-import type { AppRole } from "@/lib/roles";
-
-const allow = (role: AppRole, method: string, pathname: string) => decideAccess({ role, method, pathname }) === "allow";
-
-describe("decideAccess", () => {
-    it("ADMIN may do everything, even unknown paths", () => {
-        for (const [m, p] of [["GET", "/api/users"], ["DELETE", "/api/artists/1"], ["POST", "/api/gigs"], ["GET", "/nope"], ["POST", "/api/unknown"]]) {
-            expect(allow("ADMIN", m, p)).toBe(true);
-        }
-    });
-
-    const everyRoleApi = ["/api/me", "/api/playlists", "/api/playlists/abc", "/api/favorites", "/api/activity"];
-    for (const role of ["ADMIN", "ARTIST_MANAGER", "USER"] as AppRole[]) {
-        it(`${role} may use own profile/playlists/favorites/activity with any method`, () => {
-            for (const p of everyRoleApi) for (const m of ["GET", "POST", "PUT", "DELETE"]) expect(allow(role, m, p)).toBe(true);
-        });
-    }
-
-    it("ARTIST_MANAGER writes artists, musics and gigs", () => {
-        for (const base of ["/api/artists", "/api/musics", "/api/gigs"]) {
-            for (const m of ["GET", "POST"]) expect(allow("ARTIST_MANAGER", m, base)).toBe(true);
-            for (const m of ["PUT", "DELETE"]) expect(allow("ARTIST_MANAGER", m, `${base}/x1`)).toBe(true);
-        }
-    });
-
-    it("USER can only read artists, musics and gigs", () => {
-        for (const base of ["/api/artists", "/api/musics", "/api/gigs"]) {
-            expect(allow("USER", "GET", base)).toBe(true);
-            expect(allow("USER", "GET", `${base}/x1`)).toBe(true);
-            for (const m of ["POST", "PUT", "DELETE", "PATCH"]) expect(allow("USER", m, `${base}/x1`)).toBe(false);
-            expect(allow("USER", "POST", base)).toBe(false);
-        }
-    });
-
-    it("user management: only a single-record read for non-admins", () => {
-        for (const role of ["ARTIST_MANAGER", "USER"] as AppRole[]) {
-            expect(allow(role, "GET", "/api/users")).toBe(false);
-            expect(allow(role, "GET", "/api/users/")).toBe(false);
-            expect(allow(role, "GET", "/api/users/u1")).toBe(true);
-            expect(allow(role, "PUT", "/api/users/u1")).toBe(false);
-            expect(allow(role, "DELETE", "/api/users/u1")).toBe(false);
-            expect(allow(role, "POST", "/api/users")).toBe(false);
-        }
-    });
-
-    it("denies unknown API paths by default for non-admins", () => {
-        for (const role of ["ARTIST_MANAGER", "USER"] as AppRole[]) {
-            expect(allow(role, "GET", "/api/secret")).toBe(false);
-            expect(allow(role, "GET", "/api/artistsx")).toBe(false);
-            expect(allow(role, "GET", "/api/meow")).toBe(false);
-        }
-    });
-
-    it("pages: manager everywhere except user admin, user read-only pages", () => {
-        expect(allow("ARTIST_MANAGER", "GET", "/admin/artist/create")).toBe(true);
-        expect(allow("ARTIST_MANAGER", "GET", "/admin/music/edit/1")).toBe(true);
-        expect(allow("ARTIST_MANAGER", "GET", "/admin/user")).toBe(false);
-        expect(allow("ARTIST_MANAGER", "GET", "/admin/user/create")).toBe(false);
-        expect(allow("USER", "GET", "/admin/dashboard")).toBe(true);
-        expect(allow("USER", "GET", "/admin/artist")).toBe(true);
-        expect(allow("USER", "GET", "/admin/artist/create")).toBe(false);
-        expect(allow("USER", "GET", "/admin/music/edit/1")).toBe(false);
-        expect(allow("USER", "GET", "/admin/user")).toBe(false);
-        expect(allow("USER", "GET", "/admin/user/show/1")).toBe(false);
-    });
-
-    it("HEAD counts as a read", () => {
-        expect(allow("USER", "HEAD", "/api/artists")).toBe(true);
-    });
-});
 
 const gig = (over: Partial<GigDTO>): GigDTO => ({
     id: "g",

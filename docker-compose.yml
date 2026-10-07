@@ -3,6 +3,9 @@
 services:
   db:
     image: mariadb:12.3
+    # the migration history mixes `User`/`user` spellings (it was written on Windows): MariaDB on Linux needs
+    # case-insensitive table names. This only takes effect on a fresh data volume.
+    command: ["--lower-case-table-names=1"]
     restart: unless-stopped
     environment:
       MARIADB_DATABASE: artist_db
@@ -28,6 +31,24 @@ services:
         condition: service_healthy
     restart: "no"
 
+  # Optional one-shot: docker compose --profile seed run --rm seed
+  # Creates the admin (and demo users/data when SEED_DEMO_PASSWORD is set). Idempotent.
+  seed:
+    profiles: ["seed"]
+    build:
+      context: .
+      target: migrate
+    command: ["npx", "prisma", "db", "seed"]
+    environment:
+      DATABASE_URL: mysql://artist:${DB_PASSWORD}@db:3306/artist_db
+      SEED_MANAGER_EMAIL: ${SEED_MANAGER_EMAIL:-}
+      SEED_MANAGER_PASSWORD: ${SEED_MANAGER_PASSWORD:-}
+      SEED_DEMO_PASSWORD: ${SEED_DEMO_PASSWORD:-}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
   app:
     build:
       context: .
@@ -41,6 +62,12 @@ services:
       NEXTAUTH_URL: ${NEXTAUTH_URL:-http://localhost:3000}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/auth/providers').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
     depends_on:
       db:
         condition: service_healthy

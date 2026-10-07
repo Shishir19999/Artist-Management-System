@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "../../../../../prisma/PrismaClient";
 import { MusicSchema } from "../MusicSchema";
-import { authorize, badJson, canManage, readJson } from "@/lib/authz";
+import { authorize, badJson, readJson } from "@/lib/authz";
+import { ownArtistId, withArtistName } from "@/lib/artist-profile";
 import { cleanOpt } from "@/lib/domain/schemas";
 import { dateOnly } from "@/lib/domain/dates";
 import { logActivity } from "@/lib/activity";
@@ -10,22 +11,21 @@ type Ctx = { params: Promise<{ music_id: string }> };
 
 export async function GET(request: NextRequest, props: Ctx) {
     const params = await props.params;
-    const auth = await authorize(["ADMIN", "ARTIST_MANAGER", "USER"]);
+    const auth = await authorize(["USER", "ARTIST", "ARTIST_MANAGER"]);
     if (auth.error) return auth.error;
 
     const music = await prisma.music.findUnique({
         where: { id: params.music_id },
-        include: { artist: { select: { name: true, createdBy: true } } }
+        include: { artist: { select: { name: true } } }
     });
 
-    // USER may only read music of artists they own
-    if (!music || (!canManage(auth.user.role) && music.artist?.createdBy !== auth.user.id)) {
+    if (!music) {
         return NextResponse.json({ error: "Music not found!" }, { status: 404 });
     }
 
     const { artist, ...rest } = music;
     return NextResponse.json(
-        { music: { ...rest, artist: artist ? { name: artist.name } : null } },
+        { music: withArtistName({ ...rest, artist: artist ? { name: artist.name } : null }) },
         { status: 200 }
     );
 }
@@ -33,7 +33,7 @@ export async function GET(request: NextRequest, props: Ctx) {
 // Update an existing music record (previously this handler wrongly created a new one)
 export async function PUT(request: NextRequest, props: Ctx) {
     const params = await props.params;
-    const auth = await authorize(["ADMIN", "ARTIST_MANAGER"]);
+    const auth = await authorize(["ARTIST", "ARTIST_MANAGER"]);
     if (auth.error) return auth.error;
 
     const reqData = await readJson(request);
@@ -48,6 +48,14 @@ export async function PUT(request: NextRequest, props: Ctx) {
     const music = await prisma.music.findUnique({ where: { id: params.music_id } });
     if (!music) {
         return NextResponse.json({ error: "Music not found!" }, { status: 404 });
+    }
+
+    // an ARTIST may only change songs of their own artist record, and cannot move them elsewhere
+    if (auth.user.role === "ARTIST") {
+        const mine = await ownArtistId(auth.user.id);
+        if (!mine || music.artistId !== mine || (data.artistId && data.artistId !== mine)) {
+            return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        }
     }
 
     if (data.artistId) {
@@ -70,22 +78,26 @@ export async function PUT(request: NextRequest, props: Ctx) {
             releaseDate: dateOnly(data.releaseDate),
             coverUrl: cleanOpt(data.coverUrl),
             ...(data.artistId ? { artist: { connect: { id: data.artistId } } } : {})
-        }
+        },
+        include: { artist: { select: { name: true } } },
     });
 
     await logActivity(auth.user, "UPDATE", "SONG", updatedMusic.id, `Updated song ${updatedMusic.title}`);
 
-    return NextResponse.json({ updatedData: updatedMusic }, { status: 200 });
+    return NextResponse.json({ updatedData: withArtistName(updatedMusic) }, { status: 200 });
 }
 
 export async function DELETE(request: NextRequest, props: Ctx) {
     const params = await props.params;
-    const auth = await authorize(["ADMIN", "ARTIST_MANAGER"]);
+    const auth = await authorize(["ARTIST", "ARTIST_MANAGER"]);
     if (auth.error) return auth.error;
 
     const music = await prisma.music.findUnique({ where: { id: params.music_id } });
     if (!music) {
         return NextResponse.json({ error: "music not found" }, { status: 404 });
+    }
+    if (auth.user.role === "ARTIST" && (!music.artistId || music.artistId !== (await ownArtistId(auth.user.id)))) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     // favorites have no foreign key to songs, so remove them together with the song

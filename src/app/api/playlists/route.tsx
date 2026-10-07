@@ -8,7 +8,7 @@ import { logActivity } from "@/lib/activity";
 
 // Every role manages its own playlists only.
 export async function GET() {
-    const auth = await authorize(["ADMIN", "ARTIST_MANAGER", "USER"]);
+    const auth = await authorize(["USER", "ARTIST", "ARTIST_MANAGER"]);
     if (auth.error) return auth.error;
 
     const rows = await prisma.playlist.findMany({
@@ -20,7 +20,7 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-    const auth = await authorize(["ADMIN", "ARTIST_MANAGER", "USER"]);
+    const auth = await authorize(["USER", "ARTIST", "ARTIST_MANAGER"]);
     if (auth.error) return auth.error;
 
     const body = await readJson(request);

@@ -2,19 +2,25 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcrypt";
 import prisma from "../../../../prisma/PrismaClient";
 import { ArtistSchema } from "./ArtistSchema";
-import { authorize, badJson, canManage, readJson, stripPassword } from "@/lib/authz";
+import { authorize, badJson, readJson, stripPassword } from "@/lib/authz";
+import { ownArtistId, publicArtist } from "@/lib/artist-profile";
 import { cleanOpt } from "@/lib/domain/schemas";
 import { logActivity } from "@/lib/activity";
 
-// ADMIN/ARTIST_MANAGER: all artists. USER: only artists they created.
+// ARTIST_MANAGER: all artists (full detail). ARTIST: all artists, public details only (own record in full).
+// USER: no access.
 export async function GET(){
-    const auth = await authorize(["ADMIN", "ARTIST_MANAGER", "USER"]);
+    const auth = await authorize(["ARTIST", "ARTIST_MANAGER"]);
     if (auth.error) return auth.error;
 
-    const rows = await prisma.artist.findMany({
-        where: canManage(auth.user.role) ? undefined : { createdBy: auth.user.id }
+    const rows = await prisma.artist.findMany();
+    const mine = auth.user.role === "ARTIST" ? await ownArtistId(auth.user.id) : null;
+    const allArtists = rows.map((r) => {
+        const safe = stripPassword(r);
+        if (auth.user.role === "ARTIST_MANAGER") return safe;
+        // the UI treats "createdBy === me" as "my own artist", so an ARTIST sees their linked record that way
+        return r.id === mine ? { ...safe, createdBy: auth.user.id } : publicArtist(safe);
     });
-    const allArtists = rows.map(stripPassword);
 
     return NextResponse.json(
         {  artists: allArtists, total_count: allArtists.length },
@@ -23,7 +29,7 @@ export async function GET(){
 }
 
 export async function POST(request: NextRequest) {
-    const auth = await authorize(["ADMIN", "ARTIST_MANAGER"]);
+    const auth = await authorize(["ARTIST_MANAGER"]);
     if (auth.error) return auth.error;
 
     const reqData = await readJson(request);

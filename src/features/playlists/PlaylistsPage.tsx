@@ -85,7 +85,7 @@ export default function PlaylistsPage() {
             (selected?.songIds ?? [])
                 .map((id) => byId.get(id))
                 .filter((s): s is NonNullable<typeof s> => Boolean(s))
-                .map((song) => ({ song, artistName: song.artistId ? (artistById.get(song.artistId)?.name ?? "") : "" })),
+                .map((song) => ({ song, artistName: song.artistName ?? (song.artistId ? (artistById.get(song.artistId)?.name ?? "") : "") })),
         [selected, byId, artistById]
     );
     void songs;

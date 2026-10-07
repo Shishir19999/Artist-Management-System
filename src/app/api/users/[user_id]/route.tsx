@@ -4,25 +4,22 @@ import { UserUpdateSchema } from "../UserSchema";
 import bcrypt from 'bcrypt';
 import { authorize, badJson, readJson, stripPassword } from "@/lib/authz";
 import { logActivity } from "@/lib/activity";
+import { ensureArtistProfile } from "@/lib/artist-profile";
 
 type Ctx = { params: Promise<{ user_id: string }> };
 
 /**
- * Fetch Single User - ADMIN, or any signed-in user reading their own record
+ * Fetch Single User - ARTIST_MANAGER only (everyone else reads their own record via /api/me)
  */
 export async function GET(request: NextRequest, props: Ctx) {
     const params = await props.params;
-    const auth = await authorize(["ADMIN", "ARTIST_MANAGER", "USER"]);
+    const auth = await authorize(["ARTIST_MANAGER"]);
     if (auth.error) return auth.error;
 
     const { user_id } = params;
-    if (auth.user.role !== "ADMIN" && auth.user.id !== user_id) {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
     const user = await prisma.user.findUnique({
         where: { id: user_id },
-        include: { artist: { select: { name: true } } }
+        include: { artist: { select: { name: true } }, artistProfile: { select: { id: true, name: true } } }
     });
 
     if (!user) {
@@ -33,11 +30,11 @@ export async function GET(request: NextRequest, props: Ctx) {
 }
 
 /**
- * Update User Data - ADMIN only (so role assignment is ADMIN only)
+ * Update User Data - ARTIST_MANAGER only (so role assignment is ARTIST_MANAGER only)
  */
 export async function PUT(request: NextRequest, props: Ctx) {
     const params = await props.params;
-    const auth = await authorize(["ADMIN"]);
+    const auth = await authorize(["ARTIST_MANAGER"]);
     if (auth.error) return auth.error;
 
     const { user_id } = params;
@@ -61,7 +58,7 @@ export async function PUT(request: NextRequest, props: Ctx) {
     }
 
     // an admin must not demote themselves (avoids locking out the last admin)
-    if (user.id === auth.user.id && data.role && data.role !== "ADMIN") {
+    if (user.id === auth.user.id && data.role && data.role !== "ARTIST_MANAGER") {
         return NextResponse.json({ error: "You cannot change your own role." }, { status: 400 });
     }
 
@@ -77,17 +74,19 @@ export async function PUT(request: NextRequest, props: Ctx) {
         }
     });
 
+    if (updatedUser.role === "ARTIST") await ensureArtistProfile(updatedUser);
+
     await logActivity(auth.user, "UPDATE", "USER", updatedUser.id, `Updated user ${updatedUser.name ?? updatedUser.email}`);
 
     return NextResponse.json({ updatedData: stripPassword(updatedUser) }, { status: 200 });
 }
 
 /**
- * Delete User Data - ADMIN only
+ * Delete User Data - ARTIST_MANAGER only
  */
 export async function DELETE(request: NextRequest, props: Ctx) {
     const params = await props.params;
-    const auth = await authorize(["ADMIN"]);
+    const auth = await authorize(["ARTIST_MANAGER"]);
     if (auth.error) return auth.error;
 
     const { user_id } = params;

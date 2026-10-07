@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { SelectField, TextField } from "@/components/ui/Fields";
 import ImagePicker from "@/components/ui/ImagePicker";
+import { useAuth } from "@/lib/client/auth";
 import { useArtists } from "@/lib/client/hooks";
 import { routes } from "@/lib/client/routes";
 import { invalidate } from "@/lib/client/use-api";
@@ -39,7 +40,11 @@ export function validateSong(f: FormState): Partial<Record<keyof FormState, stri
 
 export default function SongForm({ song }: { song?: SongDTO }) {
     const router = useRouter();
-    const { artists, loading } = useArtists();
+    const { user } = useAuth();
+    const { artists: allArtists, loading } = useArtists();
+    // an Artist adds music to their own profile only; the Artist Manager can pick anyone
+    const artists = user?.role === "ARTIST" ? allArtists.filter((a) => a.createdBy === user.id) : allArtists;
+    const ownId = user?.role === "ARTIST" ? (artists[0]?.id ?? "") : "";
     const editing = Boolean(song);
     const [f, setF] = useState<FormState>({
         title: song?.title ?? "",
@@ -60,7 +65,7 @@ export default function SongForm({ song }: { song?: SongDTO }) {
 
     const submit = async (e: React.FormEvent) => {
         e.preventDefault();
-        const found = validateSong(f);
+        const found = validateSong({ ...f, artistId: f.artistId || ownId });
         setErrors(found);
         if (Object.keys(found).length) return;
         setSaving(true);
@@ -68,7 +73,7 @@ export default function SongForm({ song }: { song?: SongDTO }) {
             title: f.title.trim(),
             album: f.album.trim(),
             genre: f.genre,
-            artistId: f.artistId,
+            artistId: f.artistId || ownId,
             durationSec: f.duration.trim() ? parseDuration(f.duration) : null,
             releaseDate: f.releaseDate || null,
             coverUrl: f.coverUrl,
@@ -76,7 +81,7 @@ export default function SongForm({ song }: { song?: SongDTO }) {
         try {
             const res = editing ? await axios.put(`/api/musics/${song!.id}`, body) : await axios.post("/api/musics", body);
             invalidate();
-            showSucces(editing ? "Song updated" : "Song created");
+            showSucces(editing ? "Music updated" : "Music added");
             const saved = (res.data.updatedData ?? res.data.data) as SongDTO | undefined;
             router.push(saved?.id ? routes.musicShow(saved.id) : routes.music);
         } catch (err) {
@@ -97,7 +102,7 @@ export default function SongForm({ song }: { song?: SongDTO }) {
             <ImagePicker label="Cover art" shape="cover" name={f.title || "Song"} value={f.coverUrl} onChange={(coverUrl) => setF((p) => ({ ...p, coverUrl }))} />
             <div className="grid gap-4 sm:grid-cols-2">
                 <TextField label="Title" value={f.title} onChange={set("title")} error={errors.title} required autoComplete="off" />
-                <SelectField label="Artist" value={f.artistId} onChange={set("artistId")} error={errors.artistId} required disabled={loading}>
+                <SelectField label="Artist" value={f.artistId || ownId} onChange={set("artistId")} error={errors.artistId} required disabled={loading}>
                     <option value="">{loading ? "Loading artists" : "Select an artist"}</option>
                     {artists.map((a) => (
                         <option key={a.id} value={a.id}>
@@ -121,7 +126,7 @@ export default function SongForm({ song }: { song?: SongDTO }) {
                     Cancel
                 </Link>
                 <button type="submit" className="btn btn-primary" disabled={saving}>
-                    {saving ? "Saving" : editing ? "Save changes" : "Create song"}
+                    {saving ? "Saving" : editing ? "Save changes" : "Add music"}
                 </button>
             </div>
         </form>

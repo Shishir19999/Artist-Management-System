@@ -63,6 +63,9 @@ export const ProfileSchema = z
     .object({
         name: z.string().trim().min(2, "Name must be at least 2 characters").max(100),
         gender: z.enum(GENDERS).optional(),
+        phone: z.string().trim().max(30).nullish(),
+        address: z.string().trim().max(190).nullish(),
+        birthDate: z.string().regex(ISO_DATE, "Birth date must be YYYY-MM-DD").nullish(),
         image: dataImage,
         currentPassword: z.string().max(72).optional(),
         newPassword: z.string().min(8, "Password must be at least 8 characters").max(72).optional(),

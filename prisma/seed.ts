@@ -69,14 +69,15 @@ const GIGS: [number, string, string, string, number, "HOLD" | "CONFIRMED" | "COM
 ];
 
 async function main() {
-    const email = process.env.SEED_ADMIN_EMAIL;
-    const password = process.env.SEED_ADMIN_PASSWORD;
+    // the top role is ARTIST_MANAGER (SEED_ADMIN_* names are still accepted for older setups)
+    const email = process.env.SEED_MANAGER_EMAIL || process.env.SEED_ADMIN_EMAIL;
+    const password = process.env.SEED_MANAGER_PASSWORD || process.env.SEED_ADMIN_PASSWORD;
 
     if (!email || !password) {
-        throw new Error("Set SEED_ADMIN_EMAIL and SEED_ADMIN_PASSWORD to seed the admin user.");
+        throw new Error("Set SEED_MANAGER_EMAIL and SEED_MANAGER_PASSWORD to seed the Artist Manager account.");
     }
     if (password.length < 8) {
-        throw new Error("SEED_ADMIN_PASSWORD must be at least 8 characters.");
+        throw new Error("SEED_MANAGER_PASSWORD must be at least 8 characters.");
     }
 
     const hash = await bcrypt.hash(password, 10);
@@ -84,15 +85,17 @@ async function main() {
     // idempotent: re-running updates the same admin
     await prisma.user.upsert({
         where: { email },
-        update: { password: hash, role: "ADMIN" },
-        create: { name: "Admin", email, password: hash, role: "ADMIN" },
+        update: { password: hash, role: "ARTIST_MANAGER" },
+        create: { name: "Artist Manager", email, password: hash, role: "ARTIST_MANAGER" },
     });
 
-    console.log(`Seeded admin user: ${email}`);
+    console.log(`Seeded Artist Manager: ${email}`);
 
-    // Optional demo data (idempotent): set SEED_DEMO_PASSWORD (min 8 chars) to also create
-    // manager@artist.local (ARTIST_MANAGER), user@artist.local (USER), sample artists, music,
-    // gigs, a playlist and favorites.
+    // Optional demo data (idempotent): set SEED_DEMO_PASSWORD (min 8 chars; all demo accounts share it) to also create
+    //   manager@artist.local (ARTIST_MANAGER)
+    //   aurora@artist.local, dusty@artist.local, neon@artist.local (ARTIST, each linked to the artist record of that name)
+    //   user@artist.local, listener@artist.local (USER)
+    // plus sample artists, music, gigs, a playlist and favorites.
     const demoPassword = process.env.SEED_DEMO_PASSWORD;
     if (!demoPassword) return;
     if (demoPassword.length < 8) throw new Error("SEED_DEMO_PASSWORD must be at least 8 characters.");
@@ -103,12 +106,14 @@ async function main() {
         update: { password: demoHash, role: "ARTIST_MANAGER" },
         create: { name: "Demo Manager", email: "manager@artist.local", password: demoHash, role: "ARTIST_MANAGER" },
     });
-    const demoUser = await prisma.user.upsert({
-        where: { email: "user@artist.local" },
-        update: { password: demoHash, role: "USER" },
-        create: { name: "Demo User", email: "user@artist.local", password: demoHash, role: "USER" },
-    });
-    const owners = { manager: manager.id, user: demoUser.id };
+    for (const [name, mail] of [["Demo User", "user@artist.local"], ["Demo Listener", "listener@artist.local"]]) {
+        await prisma.user.upsert({
+            where: { email: mail },
+            update: { password: demoHash, role: "USER" },
+            create: { name, email: mail, password: demoHash, role: "USER" },
+        });
+    }
+    const owners = { manager: manager.id, user: manager.id };
 
     const songIds: string[] = [];
     const artistIds: string[] = [];
@@ -137,6 +142,17 @@ async function main() {
                 : await prisma.music.create({ data: { title, artistId: artist.id, ...data } });
             songIds.push(song.id);
         }
+    }
+
+    // artist accounts: one ARTIST user per record below, linked through Artist.userId
+    for (const idx of [0, 1, 3]) {
+        const a = ARTISTS[idx];
+        const account = await prisma.user.upsert({
+            where: { email: a.email },
+            update: { password: demoHash, role: "ARTIST" },
+            create: { name: a.name, email: a.email, password: demoHash, role: "ARTIST" },
+        });
+        await prisma.artist.update({ where: { id: artistIds[idx] }, data: { userId: account.id } });
     }
 
     // gigs: past and upcoming (re-runs keep them: matched by artist + title)
@@ -176,7 +192,7 @@ async function main() {
         });
     }
 
-    console.log("Seeded demo manager, user, artists, music, gigs, playlist and favorites");
+    console.log("Seeded demo manager, artist accounts, users, artists, music, gigs, playlist and favorites");
 }
 
 main()

@@ -31,6 +31,12 @@ const adapter: AxiosAdapter = async (config: InternalAxiosRequestConfig) => {
         config,
     };
     if (result.status >= 400) {
+        try {
+            // developer aid: the screens must not ask for things their role cannot use
+            if (sessionStorage.getItem("ams-debug")) console.error(`[preview api] ${method} ${url.pathname} -> ${result.status}`);
+        } catch {
+            /* storage unavailable */
+        }
         throw new AxiosError(`Request failed with status code ${result.status}`, AxiosError.ERR_BAD_REQUEST, config, null, response);
     }
     return response;

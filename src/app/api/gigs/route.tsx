@@ -1,20 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "../../../../prisma/PrismaClient";
-import { authorize, badJson, canManage, readJson } from "@/lib/authz";
+import { authorize, badJson, readJson } from "@/lib/authz";
+import { ownArtistId } from "@/lib/artist-profile";
 import { GigSchema, cleanOpt } from "@/lib/domain/schemas";
 import { toGigDTO } from "@/lib/domain/serialize";
 import { logActivity } from "@/lib/activity";
 
-// ADMIN/ARTIST_MANAGER: all gigs. USER: only gigs of artists they created (read-only).
+// ARTIST_MANAGER: all gigs. ARTIST: read-only, only gigs of their own linked artist. USER: no access.
 export async function GET(request: NextRequest) {
-    const auth = await authorize(["ADMIN", "ARTIST_MANAGER", "USER"]);
+    const auth = await authorize(["ARTIST", "ARTIST_MANAGER"]);
     if (auth.error) return auth.error;
 
-    const artistId = request.nextUrl.searchParams.get("artistId");
+    let artistId = request.nextUrl.searchParams.get("artistId");
+    if (auth.user.role === "ARTIST") {
+        const mine = await ownArtistId(auth.user.id);
+        if (!mine || (artistId && artistId !== mine)) return NextResponse.json({ gigs: [], total_count: 0 }, { status: 200 });
+        artistId = mine;
+    }
     const rows = await prisma.gig.findMany({
         where: {
             ...(artistId ? { artistId } : {}),
-            ...(canManage(auth.user.role) ? {} : { artist: { createdBy: auth.user.id } }),
         },
         orderBy: { date: "asc" },
     });
@@ -23,7 +28,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-    const auth = await authorize(["ADMIN", "ARTIST_MANAGER"]);
+    const auth = await authorize(["ARTIST_MANAGER"]);
     if (auth.error) return auth.error;
 
     const body = await readJson(request);

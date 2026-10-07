@@ -1,8 +1,8 @@
 import { ArtistSchema } from "@/app/api/artists/ArtistSchema";
 import { MusicSchema } from "@/app/api/musics/MusicSchema";
-import { UserSchema, UserUpdateSchema } from "@/app/api/users/UserSchema";
-import { RegisterSchema } from "@/app/api/auth/register/RegisterSchema";
+import { DemoRegisterSchema, DemoUserSchema as UserSchema, DemoUserUpdateSchema as UserUpdateSchema } from "./schemas";
 import { decideAccess } from "@/lib/domain/access";
+import { canEditArtist, canEditSong } from "@/lib/client/role-policy";
 import { FavoriteSchema, GigSchema, PlaylistSchema, ProfileSchema, cleanOpt } from "@/lib/domain/schemas";
 import { dateOnly } from "@/lib/domain/dates";
 import type { ActivityAction, ActivityEntity } from "@/lib/domain/constants";
@@ -30,8 +30,18 @@ const json = (status: number, data: unknown): DemoResponse => ({ status, data })
 const err = (status: number, message: string) => json(status, { error: message });
 const MAX_ROWS = 5000;
 
-const publicUser = (u: DemoUser): UserDTO => ({ id: u.id, name: u.name, email: u.email, image: u.image, gender: u.gender, role: u.role });
-const canManage = (role: string) => role === "ADMIN" || role === "ARTIST_MANAGER";
+const publicUser = (u: DemoUser): UserDTO => ({
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    image: u.image,
+    gender: u.gender,
+    role: u.role,
+    phone: u.phone ?? null,
+    address: u.address ?? null,
+    birthDate: u.birthDate ?? null,
+});
+const ownArtistId = (db: DemoDb, user: DemoUser) => (user.role === "ARTIST" ? (db.artists.find((a) => a.createdBy === user.id)?.id ?? null) : null);
 const nowIso = () => new Date().toISOString();
 
 export function nextId(db: DemoDb, prefix: string): string {
@@ -53,19 +63,39 @@ export function log(db: DemoDb, actor: DemoUser | null, action: ActivityAction, 
     if (db.activity.length > 400) db.activity.length = 400;
 }
 
-function visibleArtists(db: DemoDb, user: DemoUser): ArtistDTO[] {
-    return canManage(user.role) ? db.artists : db.artists.filter((a) => a.createdBy === user.id);
-}
-
-function visibleSongs(db: DemoDb, user: DemoUser): SongDTO[] {
-    if (canManage(user.role)) return db.songs;
-    const ids = new Set(visibleArtists(db, user).map((a) => a.id));
-    return db.songs.filter((s) => s.artistId && ids.has(s.artistId));
-}
+// Every role reads the whole catalogue (listeners browse all music); writes are gated by decideAccess.
+const visibleArtists = (db: DemoDb): ArtistDTO[] => db.artists;
+const visibleSongs = (db: DemoDb): SongDTO[] => db.songs;
 
 function playlistOwned(db: DemoDb, user: DemoUser, id: string): PlaylistDTO | undefined {
     const p = db.playlists.find((x) => x.id === id);
     return p && p.ownerId === user.id ? p : undefined;
+}
+
+/** An Artist account always has a profile of their own to fill in. */
+function ensureArtistProfile(db: DemoDb, user: DemoUser) {
+    if (user.role !== "ARTIST" || db.artists.some((a) => a.createdBy === user.id)) return;
+    const ts = nowIso();
+    const artist: ArtistDTO = {
+        id: nextId(db, "a"),
+        name: user.name,
+        email: null,
+        gender: user.gender,
+        first_release_year: null,
+        total_albums: null,
+        address: user.address ?? null,
+        bio: null,
+        photo: null,
+        website: null,
+        instagram: null,
+        youtube: null,
+        spotify: null,
+        createdBy: user.id,
+        created_at: ts,
+        updated_at: ts,
+    };
+    db.artists.push(artist);
+    log(db, user, "CREATE", "ARTIST", artist.id, `Created artist profile ${artist.name}`);
 }
 
 const zodFail = (error: { issues: unknown }) => json(400, { error: error.issues });
@@ -77,13 +107,25 @@ export function handleDemoRequest(db: DemoDb, sessionUserId: string | null, req:
 
     // public: sign-up
     if (resource === "auth" && id === "register" && method === "POST") {
-        const parsed = RegisterSchema.safeParse(body);
+        const parsed = DemoRegisterSchema.safeParse(body);
         if (!parsed.success) return zodFail(parsed.error);
         const d = parsed.data;
         if (db.users.some((u) => u.email.toLowerCase() === d.email)) return err(400, "Email is already used!");
-        const user: DemoUser = { id: nextId(db, "u"), name: d.name, email: d.email, password: d.password, role: "USER", gender: "MALE", image: null };
+        const user: DemoUser = {
+            id: nextId(db, "u"),
+            name: d.name,
+            email: d.email,
+            password: d.password,
+            role: d.role,
+            gender: d.gender,
+            image: null,
+            phone: cleanOpt(d.phone) ?? null,
+            address: cleanOpt(d.address) ?? null,
+            birthDate: cleanOpt(d.birthDate) ?? null,
+        };
         db.users.push(user);
         log(db, user, "REGISTER", "USER", user.id, `Registered ${user.name}`);
+        ensureArtistProfile(db, user);
         return json(201, { user: publicUser(user) });
     }
 
@@ -116,10 +158,11 @@ export function handleDemoRequest(db: DemoDb, sessionUserId: string | null, req:
 function artists(db: DemoDb, user: DemoUser, method: string, id: string | undefined, body: unknown): DemoResponse {
     if (!id) {
         if (method === "GET") {
-            const list = visibleArtists(db, user);
+            const list = visibleArtists(db);
             return json(200, { artists: list, total_count: list.length });
         }
         if (method === "POST") {
+            if (user.role !== "ARTIST_MANAGER") return err(403, "Forbidden");
             const parsed = ArtistSchema.safeParse(body);
             if (!parsed.success) return zodFail(parsed.error);
             const d = parsed.data;
@@ -153,10 +196,11 @@ function artists(db: DemoDb, user: DemoUser, method: string, id: string | undefi
 
     const artist = db.artists.find((a) => a.id === id);
     if (method === "GET") {
-        if (!artist || (!canManage(user.role) && artist.createdBy !== user.id)) return err(404, "artist not found!");
+        if (!artist) return err(404, "artist not found!");
         return json(200, { artist: { ...artist, music: db.songs.filter((s) => s.artistId === artist.id) } });
     }
     if (!artist) return err(404, method === "PUT" ? "artist Not Found!" : "artist not found");
+    if (!canEditArtist(user, artist) || (method === "DELETE" && user.role !== "ARTIST_MANAGER")) return err(403, "Forbidden");
     if (method === "PUT") {
         const parsed = ArtistSchema.safeParse(body);
         if (!parsed.success) return zodFail(parsed.error);
@@ -194,7 +238,8 @@ function artists(db: DemoDb, user: DemoUser, method: string, id: string | undefi
 function musics(db: DemoDb, user: DemoUser, method: string, id: string | undefined, body: unknown): DemoResponse {
     if (!id) {
         if (method === "GET") {
-            const list = visibleSongs(db, user);
+            const names = new Map(db.artists.map((a) => [a.id, a.name]));
+            const list = visibleSongs(db).map((song) => ({ ...song, artistName: song.artistId ? (names.get(song.artistId) ?? null) : null }));
             return json(200, { musics: list, total_count: list.length });
         }
         if (method === "POST") {
@@ -203,6 +248,7 @@ function musics(db: DemoDb, user: DemoUser, method: string, id: string | undefin
             const d = parsed.data;
             if (!d.artistId) return err(400, "Artist ID is required.");
             if (!db.artists.some((a) => a.id === d.artistId)) return err(400, "Artist not found for the provided Artist ID");
+            if (!canEditSong(user, { artistId: d.artistId }, ownArtistId(db, user))) return err(403, "Forbidden");
             if (db.songs.length >= MAX_ROWS) return err(400, "Demo storage is full. Reset the demo data.");
             const ts = nowIso();
             const song: SongDTO = {
@@ -226,15 +272,17 @@ function musics(db: DemoDb, user: DemoUser, method: string, id: string | undefin
 
     const song = db.songs.find((s) => s.id === id);
     if (method === "GET") {
-        if (!song || !visibleSongs(db, user).includes(song)) return err(404, "Music not found!");
+        if (!song || !visibleSongs(db).includes(song)) return err(404, "Music not found!");
         const owner = db.artists.find((a) => a.id === song.artistId);
         return json(200, { music: { ...song, artist: owner ? { name: owner.name } : null } });
     }
     if (!song) return err(404, "Music not found!");
+    if (!canEditSong(user, song, ownArtistId(db, user))) return err(403, "Forbidden");
     if (method === "PUT") {
         const parsed = MusicSchema.safeParse(body);
         if (!parsed.success) return zodFail(parsed.error);
         const d = parsed.data;
+        if (d.artistId && !canEditSong(user, { artistId: d.artistId }, ownArtistId(db, user))) return err(403, "Forbidden");
         if (d.artistId && !db.artists.some((a) => a.id === d.artistId)) return err(400, "Artist not found for the provided Artist ID");
         Object.assign(song, {
             title: d.title,
@@ -260,7 +308,9 @@ function musics(db: DemoDb, user: DemoUser, method: string, id: string | undefin
 }
 
 function gigs(db: DemoDb, user: DemoUser, method: string, id: string | undefined, query: URLSearchParams, body: unknown): DemoResponse {
-    const visibleIds = new Set(visibleArtists(db, user).map((a) => a.id));
+    // an artist works with their own bookings only; the manager sees every artist
+    const mine = ownArtistId(db, user);
+    const visibleIds = new Set(visibleArtists(db).filter((a) => user.role === "ARTIST_MANAGER" || a.id === mine).map((a) => a.id));
     const sorted = () => [...db.gigs].sort((a, b) => Date.parse(a.date) - Date.parse(b.date));
     if (!id) {
         if (method === "GET") {
@@ -269,11 +319,13 @@ function gigs(db: DemoDb, user: DemoUser, method: string, id: string | undefined
             return json(200, { gigs: list, total_count: list.length });
         }
         if (method === "POST") {
+            if (user.role !== "ARTIST_MANAGER") return err(403, "Forbidden");
             const parsed = GigSchema.safeParse(body);
             if (!parsed.success) return zodFail(parsed.error);
             const d = parsed.data;
             const artist = db.artists.find((a) => a.id === d.artistId);
             if (!artist) return err(400, "Artist not found for the provided Artist ID");
+            if (!visibleIds.has(artist.id)) return err(403, "Forbidden");
             const gig: GigDTO = {
                 id: nextId(db, "g"),
                 artistId: d.artistId,
@@ -299,11 +351,14 @@ function gigs(db: DemoDb, user: DemoUser, method: string, id: string | undefined
         return json(200, { gig });
     }
     if (!gig) return err(404, "Gig not found!");
+    if (!visibleIds.has(gig.artistId)) return err(403, "Forbidden");
+    if (user.role !== "ARTIST_MANAGER") return err(403, "Forbidden");
     if (method === "PUT") {
         const parsed = GigSchema.safeParse(body);
         if (!parsed.success) return zodFail(parsed.error);
         const d = parsed.data;
         if (!db.artists.some((a) => a.id === d.artistId)) return err(400, "Artist not found for the provided Artist ID");
+        if (!visibleIds.has(d.artistId)) return err(403, "Forbidden");
         Object.assign(gig, {
             artistId: d.artistId,
             title: d.title,
@@ -327,7 +382,7 @@ function gigs(db: DemoDb, user: DemoUser, method: string, id: string | undefined
 
 function users(db: DemoDb, user: DemoUser, method: string, id: string | undefined, body: unknown): DemoResponse {
     if (!id) {
-        if (user.role !== "ADMIN") return err(403, "Forbidden");
+        if (user.role !== "ARTIST_MANAGER") return err(403, "Forbidden");
         if (method === "GET") return json(200, { users: db.users.map(publicUser), total_count: db.users.length });
         if (method === "POST") {
             const parsed = UserSchema.safeParse(body);
@@ -336,17 +391,18 @@ function users(db: DemoDb, user: DemoUser, method: string, id: string | undefine
             if (db.users.some((u) => u.email.toLowerCase() === d.email.toLowerCase())) return err(400, "Email is already used!");
             const created: DemoUser = { id: nextId(db, "u"), name: d.name, email: d.email, password: d.password, role: d.role ?? "USER", gender: "MALE", image: null };
             db.users.push(created);
+            ensureArtistProfile(db, created);
             log(db, user, "CREATE", "USER", created.id, `Created user ${created.name}`);
             return json(200, { data: publicUser(created) });
         }
         return err(405, "Method not allowed");
     }
     if (method === "GET") {
-        if (user.role !== "ADMIN" && user.id !== id) return err(403, "Forbidden");
+        if (user.role !== "ARTIST_MANAGER" && user.id !== id) return err(403, "Forbidden");
         const found = db.users.find((u) => u.id === id);
         return found ? json(200, { user: publicUser(found) }) : err(404, "User not found!");
     }
-    if (user.role !== "ADMIN") return err(403, "Forbidden");
+    if (user.role !== "ARTIST_MANAGER") return err(403, "Forbidden");
     const target = db.users.find((u) => u.id === id);
     if (!target) return err(404, "User Not Found!");
     if (method === "PUT") {
@@ -354,11 +410,12 @@ function users(db: DemoDb, user: DemoUser, method: string, id: string | undefine
         if (!parsed.success) return zodFail(parsed.error);
         const d = parsed.data;
         if (db.users.some((u) => u.id !== target.id && u.email.toLowerCase() === d.email.toLowerCase())) return err(400, "Email is already in use.");
-        if (target.id === user.id && d.role && d.role !== "ADMIN") return err(400, "You cannot change your own role.");
+        if (target.id === user.id && d.role && d.role !== "ARTIST_MANAGER") return err(400, "You cannot change your own role.");
         target.name = d.name;
         target.email = d.email;
         if (d.password) target.password = d.password;
         if (d.role) target.role = d.role;
+        ensureArtistProfile(db, target);
         log(db, user, "UPDATE", "USER", target.id, `Updated user ${target.name}`);
         return json(200, { updatedData: publicUser(target) });
     }
@@ -374,7 +431,7 @@ function users(db: DemoDb, user: DemoUser, method: string, id: string | undefine
 }
 
 function playlists(db: DemoDb, user: DemoUser, method: string, id: string | undefined, body: unknown): DemoResponse {
-    const allowedSongs = new Set(visibleSongs(db, user).map((s) => s.id));
+    const allowedSongs = new Set(visibleSongs(db).map((s) => s.id));
     const resolve = (ids: string[]) => {
         const unique = [...new Set(ids)];
         return unique.every((s) => allowedSongs.has(s)) ? unique : null;
@@ -430,7 +487,7 @@ function favorites(db: DemoDb, user: DemoUser, method: string, body: unknown): D
     const parsed = FavoriteSchema.safeParse(body);
     if (!parsed.success) return zodFail(parsed.error);
     const { targetType, targetId } = parsed.data;
-    const visible = targetType === "ARTIST" ? visibleArtists(db, user).some((a) => a.id === targetId) : visibleSongs(db, user).some((s) => s.id === targetId);
+    const visible = targetType === "ARTIST" ? visibleArtists(db).some((a) => a.id === targetId) : visibleSongs(db).some((s) => s.id === targetId);
     if (!visible) return err(404, "Not found!");
     const idx = db.favorites.findIndex((f) => f.userId === user.id && f.targetType === targetType && f.targetId === targetId);
     if (idx >= 0) {
@@ -445,8 +502,8 @@ function activity(db: DemoDb, user: DemoUser, query: URLSearchParams): DemoRespo
     const rawLimit = Number.parseInt(query.get("limit") ?? "", 10);
     const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 200) : 50;
     const userId = query.get("userId");
-    if (userId && user.role !== "ADMIN" && userId !== user.id) return err(403, "Forbidden");
-    const rows = db.activity.filter((a) => (user.role === "ADMIN" ? !userId || a.userId === userId : a.userId === user.id));
+    if (userId && user.role !== "ARTIST_MANAGER" && userId !== user.id) return err(403, "Forbidden");
+    const rows = db.activity.filter((a) => (user.role === "ARTIST_MANAGER" ? !userId || a.userId === userId : a.userId === user.id));
     return json(200, { activity: rows.slice(0, limit) });
 }
 
@@ -464,6 +521,9 @@ function me(db: DemoDb, user: DemoUser, method: string, body: unknown): DemoResp
     }
     user.name = d.name;
     if (d.gender) user.gender = d.gender;
+    if (d.phone !== undefined) user.phone = cleanOpt(d.phone) ?? null;
+    if (d.address !== undefined) user.address = cleanOpt(d.address) ?? null;
+    if (d.birthDate !== undefined) user.birthDate = cleanOpt(d.birthDate) ?? null;
     if (d.image !== undefined) user.image = cleanOpt(d.image) ?? null;
     log(db, user, "UPDATE", "PROFILE", user.id, changedPassword ? "Updated profile and changed password" : "Updated profile");
     return json(200, changedPassword ? { user: publicUser(user), signOut: true } : { user: publicUser(user) });

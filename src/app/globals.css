@@ -150,6 +150,35 @@
   .bar-fill {
     background: var(--color-primary);
   }
+  /* Touch screens: every button, tab and field is at least 44px tall so it is easy to hit */
+  @media (pointer: coarse), (max-width: 1023px) {
+    .btn:not(.btn-xs) {
+      min-height: 2.75rem;
+    }
+    .btn-xs,
+    .btn-sm {
+      min-height: 2.75rem;
+      min-width: 2.75rem;
+    }
+    .btn-circle {
+      min-width: 2.75rem;
+    }
+    .input,
+    .select,
+    .tab {
+      min-height: 2.75rem;
+    }
+    .menu li > *:not(ul, .menu-title) {
+      min-height: 2.75rem;
+    }
+  }
+  /* table headers keep full text contrast on the tinted header row */
+  .table thead,
+  .table tfoot,
+  .table thead th,
+  .table thead th > button {
+    color: var(--color-base-content);
+  }
   .scroll-x {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;

@@ -38,7 +38,7 @@ describe("signIn callback (Google)", () => {
 describe("jwt callback", () => {
     it("sign-in: id/role/tv come from the DB; a role on the provider user object is ignored", async () => {
         findUnique.mockResolvedValue({ id: "g1", role: "USER", tokenVersion: 4 });
-        const token = await jwtCallback({ token: {}, user: { id: "g1", role: "ADMIN" } as User });
+        const token = await jwtCallback({ token: {}, user: { id: "g1", role: "ARTIST_MANAGER" } as User });
         expect(token).toEqual({ id: "g1", role: "USER", tv: 4 });
     });
     it("unknown user at sign-in yields an empty token", async () => {
@@ -51,19 +51,19 @@ describe("jwt callback", () => {
         expect(t).toMatchObject({ id: "u", role: "ARTIST_MANAGER", tv: 2 });
     });
     it("revoked token (version mismatch) is emptied", async () => {
-        findUnique.mockResolvedValue({ role: "ADMIN", tokenVersion: 3 });
-        expect(await jwtCallback({ token: { id: "u", role: "ADMIN", tv: 2 } })).toEqual({});
+        findUnique.mockResolvedValue({ role: "ARTIST_MANAGER", tokenVersion: 3 });
+        expect(await jwtCallback({ token: { id: "u", role: "ARTIST_MANAGER", tv: 2 } })).toEqual({});
     });
     it("deleted user's token is emptied", async () => {
         findUnique.mockResolvedValue(null);
-        expect(await jwtCallback({ token: { id: "u", role: "ADMIN", tv: 0 } })).toEqual({});
+        expect(await jwtCallback({ token: { id: "u", role: "ARTIST_MANAGER", tv: 0 } })).toEqual({});
     });
 });
 
 describe("session callback", () => {
     it("copies id and role", async () => {
-        const s = await sessionCallback({ session: { user: { name: "n" }, expires: "x" } as never, token: { id: "u", role: "ADMIN" } });
-        expect(s.user).toMatchObject({ id: "u", role: "ADMIN" });
+        const s = await sessionCallback({ session: { user: { name: "n" }, expires: "x" } as never, token: { id: "u", role: "ARTIST_MANAGER" } });
+        expect(s.user).toMatchObject({ id: "u", role: "ARTIST_MANAGER" });
     });
     it("revoked token gives empty id; bad role falls back to USER", async () => {
         const s = await sessionCallback({ session: { user: {}, expires: "x" } as never, token: { role: "ROOT" as never } });

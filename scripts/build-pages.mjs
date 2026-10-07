@@ -47,7 +47,7 @@ const apiDir = path.join(src, "app", "api");
 walk(apiDir, (full, entry) => {
     if (entry.isFile() && !/Schema\.tsx?$/.test(entry.name)) fs.rmSync(full);
 });
-for (const f of ["proxy.ts", "lib/authz.ts", "lib/activity.ts", "lib/playlist-songs.ts", "lib/rate-limit.ts", "lib/auth-callbacks.ts", "lib/google-enabled.ts"]) {
+for (const f of ["proxy.ts", "lib/authz.ts", "lib/activity.ts", "lib/playlist-songs.ts", "lib/rate-limit.ts", "lib/auth-callbacks.ts", "lib/google-enabled.ts", "lib/artist-profile.ts"]) {
     // the demo swap below may still need some of these removed only after the swap
     if (fs.existsSync(path.join(src, f))) fs.rmSync(path.join(src, f));
 }

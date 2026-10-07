@@ -119,7 +119,12 @@ export default function LoginForm({ googleEnabled }: { googleEnabled: boolean })
                 </>
             )}
 
-            <DemoLogins disabled={isSubmitting} onPick={(email, password) => void submit(email, password)} />
+            <DemoLogins
+                onFill={(email, password) => {
+                    setFormData({ email, password });
+                    setErrors({});
+                }}
+            />
 
             <p className="muted text-center text-sm">
                 Don&apos;t have an account?{" "}
