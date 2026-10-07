@@ -1,6 +1,7 @@
 import { withAuth } from "next-auth/middleware";
 import { NextResponse } from "next/server";
 import { isRole } from "@/lib/roles";
+import { decideAccess } from "@/lib/domain/access";
 
 /**
  * Coarse, edge-level gate. Route handlers re-check authorization (src/lib/authz.ts),
@@ -35,28 +36,8 @@ export default withAuth(
         if (!isRole(role)) return deny();
         if (role === "ADMIN") return NextResponse.next();
 
-        const isRead = method === "GET" || method === "HEAD";
+        return decideAccess({ pathname, method, role }) === "allow" ? NextResponse.next() : deny();
 
-        if (isApi) {
-            if (pathname.startsWith("/api/users")) {
-                // non-admins may only read a single user record (handler enforces "own")
-                return isRead && pathname !== "/api/users" && pathname !== "/api/users/"
-                    ? NextResponse.next()
-                    : deny();
-            }
-            if (pathname.startsWith("/api/artists") || pathname.startsWith("/api/musics")) {
-                if (role === "ARTIST_MANAGER" || isRead) return NextResponse.next();
-                return deny();
-            }
-            return deny(); // unknown API paths: default deny
-        }
-
-        // /admin/** pages
-        if (pathname.startsWith("/admin/user")) return deny();
-        if (role === "ARTIST_MANAGER") return NextResponse.next();
-        // USER: read-only pages only (no create/edit screens), no user management
-        if (/\/(create|edit)(\/|$)/.test(pathname)) return deny();
-        return NextResponse.next();
     },
     {
         pages: { signIn: "/auth/login" },

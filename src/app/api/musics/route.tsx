@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { MusicSchema} from "./MusicSchema";
 import prisma from "./../../../../prisma/PrismaClient";
 import { authorize, badJson, canManage, readJson } from "@/lib/authz";
+import { cleanOpt } from "@/lib/domain/schemas";
+import { dateOnly } from "@/lib/domain/dates";
+import { logActivity } from "@/lib/activity";
 
 // ADMIN/ARTIST_MANAGER: all music. USER: only music of artists they created.
 export async function GET() {
@@ -64,9 +67,14 @@ export async function POST(request: NextRequest){
             title: data.title,
             album: data.album,
             genre: data.genre,
+            durationSec: cleanOpt(data.durationSec),
+            releaseDate: dateOnly(data.releaseDate),
+            coverUrl: cleanOpt(data.coverUrl),
             artist: { connect: { id: data.artistId } }
         }
     })
+
+    await logActivity(auth.user, "CREATE", "SONG", newMusic.id, `Created song ${newMusic.title}`);
 
     return NextResponse.json(
         { data: newMusic },

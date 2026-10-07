@@ -46,3 +46,6 @@ dist/
 build/
 coverage/
 *.log
+
+.pages-build/
+dist-pages/

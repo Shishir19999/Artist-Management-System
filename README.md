@@ -1,8 +1,49 @@
 # Artist Management System
 
-Next.js 16 (App Router, React 19, TypeScript 7, Tailwind CSS 4 + daisyUI 5) + Prisma 7 (MySQL/MariaDB via the `@prisma/adapter-mariadb` driver adapter) + NextAuth v4 app for managing users, artists and their music. Requires Node 24 LTS (`engines.node >=24`).
+Artist, catalogue and booking management with role-based access, analytics, playlists, audio previews and an audit trail.
 
-Tooling notes: ESLint is on 9.x (eslint-plugin-react/jsx-a11y/import used by `eslint-config-next` do not support ESLint 10 yet); `typescript` is aliased to `@typescript/typescript6` for typescript-eslint while `tsc` (TypeScript 7) comes from `@typescript/native`; NextAuth stays on v4 because Auth.js v5 is still beta; Prisma CLI reads `prisma.config.ts` (needs `DATABASE_URL`, loaded from `.env`).
+**Live demo (runs entirely in your browser, no server): https://shishir19999.github.io/Artist-Management-System/**
+
+## Demo logins
+
+| Role | Email | Password | What it can do |
+| --- | --- | --- | --- |
+| Admin | `admin@example.com` | `Demo@1234` | Everything, including users and roles |
+| Artist manager | `manager@example.com` | `Demo@1234` | Artists, songs, gigs, imports |
+| User | `user@example.com` | `Demo@1234` | Read-only view of the artists shared with them |
+
+The login page of the demo also has one-click buttons for these accounts, and registering a new account works (new accounts are always plain users).
+
+## Real mode vs demo mode
+
+| | Real mode (`npm run dev` / `npm run build`) | Demo mode (`npm run build:pages`) |
+| --- | --- | --- |
+| Data | MariaDB/MySQL through Prisma | Browser storage, seeded with 25 artists and about 120 songs |
+| Auth | NextAuth (credentials + optional Google), JWT, role checks in `src/proxy.ts` and every route handler | Client-side session, same role rules |
+| API | Next.js route handlers under `src/app/api` | An in-browser implementation of the same endpoints (`src/lib/demo`) |
+| Hosting | Node server or Docker | Any static host, for example GitHub Pages |
+
+Demo data lives in your browser only. Use **Reset demo data** in the yellow banner to restore the sample catalogue.
+
+## Features
+
+- Analytics dashboard: artists by genre, songs per release year, top artists, upcoming gigs, recent activity
+- Global search (Ctrl+K or /), sortable, filterable, paginated tables with column visibility, CSV export and CSV import, bulk actions
+- Artist profiles: biography, photo, social links, discography grouped by album, gigs and bookings; calendar page for all gigs
+- Songs and albums: duration, genre, release date, cover art, in-app audio previews (synthesized clips, no audio files)
+- Playlists (ordered, private to each user), favorites, audit trail of every change
+- Role management for admins, profile and settings page, first-login guided tour
+- Light and dark theme (follows the system, remembered), responsive from 320 px, keyboard accessible, skeleton, empty and error states, toasts and confirm dialogs
+- Landing page with subtle parallax and scroll-reveal effects (transform and opacity only, switched off for `prefers-reduced-motion`, small screens and data-saver mode, and never used on tables or forms)
+
+## Static demo build (GitHub Pages)
+
+```bash
+npm run build:pages     # writes the static site to dist-pages/
+npx serve dist-pages    # or any static server; the site expects the sub-path /Artist-Management-System/
+```
+
+`scripts/build-pages.mjs` works on a temporary copy (`.pages-build/`), so the real source tree is untouched: API routes, `proxy.ts`, NextAuth and Prisma are removed there, `*.demo.tsx` files replace their server-backed counterparts, dynamic detail routes become `?id=` pages, and Next.js exports a fully static site with `basePath` `/Artist-Management-System`. Set `BASE_PATH=/other-name` to publish under another repository name. Publish the contents of `dist-pages/` (it contains `.nojekyll`) to the `gh-pages` branch or a Pages artifact.
 
 ## Setup
 
@@ -10,12 +51,12 @@ Tooling notes: ESLint is on 9.x (eslint-plugin-react/jsx-a11y/import used by `es
 2. Copy `.env.example` to `.env` and fill in the values (`DATABASE_URL`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`).
 3. `npx prisma migrate deploy` (or `npx prisma migrate dev` while developing) and `npx prisma generate`.
 4. Set `SEED_ADMIN_EMAIL` / `SEED_ADMIN_PASSWORD` (min 8 chars) and run `npx prisma db seed` to create the first ADMIN (idempotent).
-5. Optional demo data: also set `SEED_DEMO_PASSWORD` (min 8 chars) before `npx prisma db seed` to create `manager@artist.local` (ARTIST_MANAGER), `user@artist.local` (USER), 3 artists and 6 songs. The seed is idempotent (upserts by email / title) and can be re-run safely.
+5. Optional demo data: also set `SEED_DEMO_PASSWORD` (min 8 chars) before `npx prisma db seed` to create a manager, a user and a small sample catalogue (see `prisma/seed.ts`). The seed is idempotent (upserts by email / title) and can be re-run safely.
 6. `npm run dev` and open http://localhost:3000
 
-### Local MySQL/MariaDB and demo logins
+### Local MySQL/MariaDB and seeded logins
 
-Any MySQL 8 / MariaDB 10.6+ works (CI/Docker use MariaDB 12.3 LTS), e.g. `DATABASE_URL="mysql://root@127.0.0.1:3306/artist_db"` after `CREATE DATABASE artist_db;`. All 23 migrations apply cleanly to an empty database (`npx prisma migrate deploy`) and the result matches `schema.prisma` (no drift).
+Any MySQL 8 / MariaDB 10.6+ works (CI/Docker use MariaDB 12.3 LTS), e.g. `DATABASE_URL="mysql://root@127.0.0.1:3306/artist_db"` after `CREATE DATABASE artist_db;`. All migrations apply cleanly to an empty database (`npx prisma migrate deploy`) and the result matches `schema.prisma` (no drift).
 
 | Role | Email | Password |
 | --- | --- | --- |
@@ -27,6 +68,7 @@ The sidebar only shows the links the signed-in role can open (Artist, Music for 
 
 ## Scripts
 
+- `npm run build:pages` - static browser-only demo (see above)
 - `npm run dev` - development server
 - `npm run build` / `npm start` - production build and server
 - `npm run lint` - ESLint

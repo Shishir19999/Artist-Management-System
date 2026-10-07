@@ -3,6 +3,8 @@ import prisma from "../../../../../prisma/PrismaClient";
 import { ArtistSchema } from "../ArtistSchema";
 import bcrypt from 'bcrypt';
 import { authorize, badJson, canManage, readJson, stripPassword } from "@/lib/authz";
+import { cleanOpt } from "@/lib/domain/schemas";
+import { logActivity } from "@/lib/activity";
 
 type Ctx = { params: Promise<{ artist_id: string }> };
 
@@ -14,7 +16,7 @@ export async function GET(request: NextRequest, props: Ctx) {
     const artist = await prisma.artist.findUnique({
         where: { id: params.artist_id },
         include: {
-            music: { select: { title: true, album: true, genre: true } }
+            music: { select: { id: true, title: true, album: true, genre: true, durationSec: true, releaseDate: true, coverUrl: true, artistId: true } }
         }
     });
 
@@ -61,9 +63,17 @@ export async function PUT(request: NextRequest, props: Ctx) {
             gender: data.gender,
             first_release_year: data.first_release_year,
             total_albums: data.total_albums,
-            address: data.address
+            address: data.address,
+            bio: cleanOpt(data.bio),
+            photo: cleanOpt(data.photo),
+            website: cleanOpt(data.website),
+            instagram: cleanOpt(data.instagram),
+            youtube: cleanOpt(data.youtube),
+            spotify: cleanOpt(data.spotify)
         }
     });
+
+    await logActivity(auth.user, "UPDATE", "ARTIST", updatedArtist.id, `Updated artist ${updatedArtist.name}`);
 
     return NextResponse.json({ updatedData: stripPassword(updatedArtist) }, { status: 200 });
 }
@@ -78,7 +88,12 @@ export async function DELETE(request: NextRequest, props: Ctx) {
         return NextResponse.json({ error: "artist not found" }, { status: 404 });
     }
 
-    const deletedArtist = await prisma.artist.delete({ where: { id: artist.id } });
+    // favorites point at artists without a foreign key, so clean them up here (songs are kept, unlinked)
+    const [, deletedArtist] = await prisma.$transaction([
+        prisma.favorite.deleteMany({ where: { targetType: "ARTIST", targetId: artist.id } }),
+        prisma.artist.delete({ where: { id: artist.id } }),
+    ]);
+    await logActivity(auth.user, "DELETE", "ARTIST", artist.id, `Deleted artist ${artist.name}`);
 
     return NextResponse.json(
         { deletedArtist: stripPassword(deletedArtist), msg: "artist deleted successfully!" },

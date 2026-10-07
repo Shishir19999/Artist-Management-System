@@ -3,6 +3,8 @@ import bcrypt from "bcrypt";
 import prisma from "../../../../prisma/PrismaClient";
 import { ArtistSchema } from "./ArtistSchema";
 import { authorize, badJson, canManage, readJson, stripPassword } from "@/lib/authz";
+import { cleanOpt } from "@/lib/domain/schemas";
+import { logActivity } from "@/lib/activity";
 
 // ADMIN/ARTIST_MANAGER: all artists. USER: only artists they created.
 export async function GET(){
@@ -52,9 +54,17 @@ export async function POST(request: NextRequest) {
             first_release_year: data.first_release_year,
             total_albums: data.total_albums,
             address: data.address,
+            bio: cleanOpt(data.bio),
+            photo: cleanOpt(data.photo),
+            website: cleanOpt(data.website),
+            instagram: cleanOpt(data.instagram),
+            youtube: cleanOpt(data.youtube),
+            spotify: cleanOpt(data.spotify),
             createdBy: auth.user.id, // taken from the session, not the request body
         }
     });
+
+    await logActivity(auth.user, "CREATE", "ARTIST", newArtist.id, `Created artist ${newArtist.name}`);
 
     return NextResponse.json(
         { newArtist: stripPassword(newArtist) },

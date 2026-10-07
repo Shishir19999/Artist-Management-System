@@ -4,6 +4,7 @@ import prisma from "../../../../../prisma/PrismaClient";
 import { RegisterSchema } from "./RegisterSchema";
 import { badJson, readJson } from "@/lib/authz";
 import { rateLimit } from "@/lib/rate-limit";
+import { logActivity } from "@/lib/activity";
 
 const MAX_PER_WINDOW = 10;
 const WINDOW_MS = 15 * 60 * 1000;
@@ -32,6 +33,7 @@ export async function POST(request: NextRequest) {
         const user = await prisma.user.create({
             data: { name, email, password: await bcrypt.hash(password, 10), role: "USER" },
         });
+        await logActivity(user, "REGISTER", "USER", user.id, `${user.name ?? "A new user"} registered`);
         return NextResponse.json({ data: { id: user.id, name: user.name, email: user.email, role: user.role } }, { status: 201 });
     } catch (e) {
         if ((e as { code?: string })?.code === "P2002") {

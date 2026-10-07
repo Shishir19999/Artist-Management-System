@@ -4,7 +4,7 @@ import GoogleProvider from "next-auth/providers/google";
 import prisma from "../../../../../prisma/PrismaClient";
 import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcrypt";
-import { jwtCallback, sessionCallback, signInCallback, signOutEvent } from "@/lib/auth-callbacks";
+import { jwtCallback, sessionCallback, signInCallback, signInEvent, signOutEvent } from "@/lib/auth-callbacks";
 import { isGoogleEnabled } from "@/lib/google-enabled";
 
 export const authOptions: NextAuthOptions = {
@@ -54,6 +54,7 @@ export const authOptions: NextAuthOptions = {
         session: sessionCallback,
     },
     events: {
+        signIn: signInEvent,
         signOut: signOutEvent,
     },
 }
