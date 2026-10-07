@@ -3,6 +3,7 @@ import { UserSchema } from "./UserSchema";
 import prisma from "./../../../../prisma/PrismaClient";
 import bcrypt from 'bcrypt';
 import { authorize, badJson, readJson, stripPassword } from "@/lib/authz";
+import { logActivity } from "@/lib/activity";
 
 // ADMIN only: list users
 export async function GET(){
@@ -54,6 +55,8 @@ export async function POST(request: NextRequest){
             role: data.role ?? "USER"
         }
     })
+
+    await logActivity(auth.user, "CREATE", "USER", newUser.id, `Created user ${newUser.name ?? newUser.email}`);
 
     return NextResponse.json(
         { data: stripPassword(newUser) },

@@ -3,6 +3,7 @@ import prisma from "../../../../../prisma/PrismaClient";
 import { UserUpdateSchema } from "../UserSchema";
 import bcrypt from 'bcrypt';
 import { authorize, badJson, readJson, stripPassword } from "@/lib/authz";
+import { logActivity } from "@/lib/activity";
 
 type Ctx = { params: Promise<{ user_id: string }> };
 
@@ -76,6 +77,8 @@ export async function PUT(request: NextRequest, props: Ctx) {
         }
     });
 
+    await logActivity(auth.user, "UPDATE", "USER", updatedUser.id, `Updated user ${updatedUser.name ?? updatedUser.email}`);
+
     return NextResponse.json({ updatedData: stripPassword(updatedUser) }, { status: 200 });
 }
 
@@ -98,6 +101,8 @@ export async function DELETE(request: NextRequest, props: Ctx) {
     }
 
     const deletedUser = await prisma.user.delete({ where: { id: user_id } });
+
+    await logActivity(auth.user, "DELETE", "USER", user.id, `Deleted user ${user.name ?? user.email}`);
 
     return NextResponse.json(
         { deletedUser: stripPassword(deletedUser), msg: "User deleted successfully!" },

@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import prisma from "../../../../../prisma/PrismaClient";
 import { MusicSchema } from "../MusicSchema";
 import { authorize, badJson, canManage, readJson } from "@/lib/authz";
+import { cleanOpt } from "@/lib/domain/schemas";
+import { dateOnly } from "@/lib/domain/dates";
+import { logActivity } from "@/lib/activity";
 
 type Ctx = { params: Promise<{ music_id: string }> };
 
@@ -63,9 +66,14 @@ export async function PUT(request: NextRequest, props: Ctx) {
             title: data.title,
             album: data.album,
             genre: data.genre,
+            durationSec: cleanOpt(data.durationSec),
+            releaseDate: dateOnly(data.releaseDate),
+            coverUrl: cleanOpt(data.coverUrl),
             ...(data.artistId ? { artist: { connect: { id: data.artistId } } } : {})
         }
     });
+
+    await logActivity(auth.user, "UPDATE", "SONG", updatedMusic.id, `Updated song ${updatedMusic.title}`);
 
     return NextResponse.json({ updatedData: updatedMusic }, { status: 200 });
 }
@@ -80,7 +88,12 @@ export async function DELETE(request: NextRequest, props: Ctx) {
         return NextResponse.json({ error: "music not found" }, { status: 404 });
     }
 
-    const deletedMusic = await prisma.music.delete({ where: { id: music.id } });
+    // favorites have no foreign key to songs, so remove them together with the song
+    const [, deletedMusic] = await prisma.$transaction([
+        prisma.favorite.deleteMany({ where: { targetType: "SONG", targetId: music.id } }),
+        prisma.music.delete({ where: { id: music.id } }),
+    ]);
+    await logActivity(auth.user, "DELETE", "SONG", music.id, `Deleted song ${music.title}`);
 
     return NextResponse.json(
         { deletedMusic, msg: "Music deleted successfully!" },

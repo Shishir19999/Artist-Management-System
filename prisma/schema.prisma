@@ -37,18 +37,20 @@ model Session {
 }
 
 model User {
-  id            String    @id @default(cuid())
+  id            String     @id @default(cuid())
   name          String?
-  email         String?   @unique
-  emailVerified DateTime? @map("email_verified")
+  email         String?    @unique
+  emailVerified DateTime?  @map("email_verified")
   password      String?
   image         String?
-  gender        Gender    @default(MALE)
-  role          Role      @default(USER)
-  tokenVersion  Int       @default(0) @map("token_version")
+  gender        Gender     @default(MALE)
+  role          Role       @default(USER)
+  tokenVersion  Int        @default(0) @map("token_version")
   accounts      Account[]
   sessions      Session[]
   artist        Artist[] // One-to-many relation with Artist
+  playlists     Playlist[]
+  favorites     Favorite[]
 
   @@map("users")
 }
@@ -62,24 +64,114 @@ model Artist {
   first_release_year String?
   total_albums       Int?
   address            String?
+  bio                String?  @db.Text
+  photo              String?  @db.MediumText
+  website            String?
+  instagram          String?
+  youtube            String?
+  spotify            String?
   createdBy          String?
   created_at         DateTime @default(now())
   updated_at         DateTime @updatedAt
 
   user  User?   @relation(fields: [createdBy], references: [id])
   music Music[]
+  gigs  Gig[]
 }
 
 model Music {
-  id         String   @id @default(cuid())
-  title      String
-  album      String?
-  genre      Genre    @default(CLASSIC)
-  artistId   String?
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
+  id          String    @id @default(cuid())
+  title       String
+  album       String?
+  genre       Genre     @default(CLASSIC)
+  artistId    String?
+  durationSec Int?
+  releaseDate DateTime? @db.Date
+  coverUrl    String?   @db.MediumText
+  created_at  DateTime  @default(now())
+  updated_at  DateTime  @updatedAt
 
-  artist Artist? @relation(fields: [artistId], references: [id]) // Relation to Artist
+  artist        Artist?        @relation(fields: [artistId], references: [id]) // Relation to Artist
+  playlistItems PlaylistItem[]
+}
+
+model Playlist {
+  id          String   @id @default(cuid())
+  name        String
+  description String?  @db.Text
+  ownerId     String   @map("owner_id")
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  owner User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  items PlaylistItem[]
+
+  @@index([ownerId])
+  @@map("playlists")
+}
+
+model PlaylistItem {
+  id         String @id @default(cuid())
+  playlistId String @map("playlist_id")
+  musicId    String @map("music_id")
+  position   Int
+
+  playlist Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  music    Music    @relation(fields: [musicId], references: [id], onDelete: Cascade)
+
+  @@unique([playlistId, musicId])
+  @@index([playlistId, position])
+  @@map("playlist_items")
+}
+
+model Favorite {
+  id         String         @id @default(cuid())
+  userId     String         @map("user_id")
+  targetType FavoriteTarget @map("target_type")
+  targetId   String         @map("target_id")
+  created_at DateTime       @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, targetType, targetId])
+  @@index([targetType, targetId])
+  @@map("favorites")
+}
+
+model Gig {
+  id         String    @id @default(cuid())
+  artistId   String    @map("artist_id")
+  title      String
+  venue      String
+  city       String?
+  date       DateTime
+  status     GigStatus @default(CONFIRMED)
+  fee        Int?
+  notes      String?   @db.Text
+  createdBy  String?   @map("created_by")
+  created_at DateTime  @default(now())
+  updated_at DateTime  @updatedAt
+
+  artist Artist @relation(fields: [artistId], references: [id], onDelete: Cascade)
+
+  @@index([artistId])
+  @@index([date])
+  @@map("gigs")
+}
+
+model ActivityLog {
+  id         String   @id @default(cuid())
+  userId     String?  @map("user_id")
+  userName   String?  @map("user_name")
+  action     String
+  entity     String
+  entityId   String?  @map("entity_id")
+  summary    String   @db.VarChar(255)
+  created_at DateTime @default(now())
+
+  @@index([userId, created_at])
+  @@index([created_at])
+  @@map("activity_logs")
 }
 
 model VerificationToken {
@@ -97,6 +189,23 @@ enum Genre {
   CLASSIC
   ROCK
   JAZZ
+  POP
+  HIPHOP
+  ELECTRONIC
+  FOLK
+  BLUES
+}
+
+enum FavoriteTarget {
+  ARTIST
+  SONG
+}
+
+enum GigStatus {
+  HOLD
+  CONFIRMED
+  COMPLETED
+  CANCELLED
 }
 
 enum Gender {

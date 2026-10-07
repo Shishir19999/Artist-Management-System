@@ -7,6 +7,7 @@ export interface AuthUser {
     id: string;
     role: AppRole;
     email?: string | null;
+    name?: string | null;
 }
 
 type AuthResult = { user: AuthUser; error?: undefined } | { user?: undefined; error: NextResponse };
@@ -30,7 +31,7 @@ export async function authorize(allowed: readonly AppRole[]): Promise<AuthResult
     if (!allowed.includes(role)) {
         return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
     }
-    return { user: { id, role, email: session.user.email } };
+    return { user: { id, role, email: session.user.email, name: session.user.name } };
 }
 
 export const canManage = (role: AppRole) => role === "ADMIN" || role === "ARTIST_MANAGER";

@@ -2,6 +2,7 @@ import type { Account, Profile, Session, User } from "next-auth";
 import type { JWT } from "next-auth/jwt";
 import prisma from "../../prisma/PrismaClient";
 import { isRole } from "./roles";
+import { logActivity } from "./activity";
 
 /**
  * NextAuth callbacks, kept in their own module so they can be unit tested.
@@ -61,12 +62,20 @@ export async function sessionCallback({ session, token }: { session: Session; to
     return session;
 }
 
+/** Login: append to the audit trail (never blocks or fails the sign-in). */
+export async function signInEvent({ user }: { user: User }): Promise<void> {
+    if (!user?.id) return;
+    await logActivity(user, "LOGIN", "SESSION", user.id, `${user.name ?? user.email ?? "A user"} signed in`);
+}
+
 /** Logout: bump the version so this (and any copied) JWT stops working server-side. */
 export async function signOutEvent({ token }: { token: JWT }): Promise<void> {
     if (!token?.id || typeof token.tv !== "number") return;
     // conditional so replaying an already-revoked token cannot log the user out again
-    await prisma.user.updateMany({
+    const res = await prisma.user.updateMany({
         where: { id: token.id, tokenVersion: token.tv },
         data: { tokenVersion: { increment: 1 } },
     });
+    if (res && res.count === 0) return;
+    await logActivity({ id: token.id, name: token.name, email: token.email }, "LOGOUT", "SESSION", token.id, `${token.name ?? token.email ?? "A user"} signed out`);
 }
